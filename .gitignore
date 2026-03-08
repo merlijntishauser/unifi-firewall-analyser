@@ -1,0 +1,10 @@
+# JetBrains IDEs
+.idea/
+
+# Claude AI Assistant
+.claude/
+
+# Git
+.git/
+!.gitattributes
+!.gitignore
