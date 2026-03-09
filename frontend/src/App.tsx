@@ -15,7 +15,7 @@ function App() {
   const [colorMode, setColorMode] = useState<ColorMode>("light");
   const [showDisabled, setShowDisabled] = useState(false);
   const [selectedPair, setSelectedPair] = useState<ZonePair | null>(null);
-  const [focusZoneId, setFocusZoneId] = useState<string | null>(null);
+  const [focusZoneIds, setFocusZoneIds] = useState<string[] | null>(null);
 
   const { zones, zonePairs, loading, error, refresh } = useFirewallData(authed);
 
@@ -59,17 +59,17 @@ function App() {
   }, []);
 
   const handleCellClick = useCallback((pair: ZonePair) => {
-    setFocusZoneId(pair.source_zone_id);
+    setFocusZoneIds([pair.source_zone_id, pair.destination_zone_id]);
     setSelectedPair(pair);
   }, []);
 
   const handleZoneClick = useCallback((zoneId: string) => {
-    setFocusZoneId(zoneId);
+    setFocusZoneIds([zoneId]);
     setSelectedPair(null);
   }, []);
 
   const handleBack = useCallback(() => {
-    setFocusZoneId(null);
+    setFocusZoneIds(null);
     setSelectedPair(null);
   }, []);
 
@@ -105,7 +105,7 @@ function App() {
       )}
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1 relative">
-          {focusZoneId ? (
+          {focusZoneIds ? (
             <>
               <button
                 onClick={handleBack}
@@ -118,7 +118,7 @@ function App() {
                 zonePairs={filteredZonePairs}
                 colorMode={colorMode}
                 onEdgeSelect={handleEdgeSelect}
-                focusZoneId={focusZoneId}
+                focusZoneIds={focusZoneIds}
               />
             </>
           ) : (

@@ -182,7 +182,7 @@ describe("ZoneGraph", () => {
     expect(screen.getByTestId("edges-count").textContent).toBe("0");
   });
 
-  it("filters to only connected zones when focusZoneId is set", () => {
+  it("filters to only connected zones when focusZoneIds has one ID", () => {
     const threeZones: Zone[] = [
       { id: "z1", name: "External", networks: [] },
       { id: "z2", name: "Internal", networks: [] },
@@ -202,14 +202,41 @@ describe("ZoneGraph", () => {
     ];
 
     render(
-      <ZoneGraph zones={threeZones} zonePairs={pairs} colorMode="light" onEdgeSelect={onEdgeSelect} focusZoneId="z1" />,
+      <ZoneGraph zones={threeZones} zonePairs={pairs} colorMode="light" onEdgeSelect={onEdgeSelect} focusZoneIds={["z1"]} />,
     );
     // z1 connects to z2 only, so we should see 2 nodes (z1, z2) and 1 edge
     expect(screen.getByTestId("nodes-count").textContent).toBe("2");
     expect(screen.getByTestId("edges-count").textContent).toBe("1");
   });
 
-  it("shows all zones when focusZoneId is not set", () => {
+  it("filters to exact pair when focusZoneIds has two IDs", () => {
+    const threeZones: Zone[] = [
+      { id: "z1", name: "External", networks: [] },
+      { id: "z2", name: "Internal", networks: [] },
+      { id: "z3", name: "Guest", networks: [] },
+    ];
+    const pairs: ZonePair[] = [
+      {
+        source_zone_id: "z1", destination_zone_id: "z2",
+        rules: [{ id: "r1", name: "R1", description: "", enabled: true, action: "ALLOW", source_zone_id: "z1", destination_zone_id: "z2", protocol: "TCP", port_ranges: [], ip_ranges: [], index: 1, predefined: false }],
+        allow_count: 1, block_count: 0,
+      },
+      {
+        source_zone_id: "z1", destination_zone_id: "z3",
+        rules: [{ id: "r2", name: "R2", description: "", enabled: true, action: "BLOCK", source_zone_id: "z1", destination_zone_id: "z3", protocol: "TCP", port_ranges: [], ip_ranges: [], index: 2, predefined: false }],
+        allow_count: 0, block_count: 1,
+      },
+    ];
+
+    render(
+      <ZoneGraph zones={threeZones} zonePairs={pairs} colorMode="light" onEdgeSelect={onEdgeSelect} focusZoneIds={["z1", "z2"]} />,
+    );
+    // Only z1->z2 pair, so 2 nodes and 1 edge (z1->z3 excluded)
+    expect(screen.getByTestId("nodes-count").textContent).toBe("2");
+    expect(screen.getByTestId("edges-count").textContent).toBe("1");
+  });
+
+  it("shows all zones when focusZoneIds is not set", () => {
     const threeZones: Zone[] = [
       { id: "z1", name: "External", networks: [] },
       { id: "z2", name: "Internal", networks: [] },
