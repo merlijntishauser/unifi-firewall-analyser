@@ -69,7 +69,7 @@ export default function RulePanel({
       const result = await api.simulate({
         src_ip: srcIp,
         dst_ip: dstIp,
-        protocol: protocol === "Any" ? "" : protocol,
+        protocol: protocol === "Any" ? "all" : protocol.toLowerCase(),
         port: port ? Number(port) : null,
       });
       setSimResult(result);

@@ -11,7 +11,7 @@ export default function LoginScreen({ onLoggedIn }: LoginScreenProps) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [site, setSite] = useState("default");
-  const [verifySsl, setVerifySsl] = useState(true);
+  const [verifySsl, setVerifySsl] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 

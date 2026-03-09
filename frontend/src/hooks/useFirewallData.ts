@@ -2,10 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "../api/client";
 import type { Zone, ZonePair } from "../api/types";
 
-export function useFirewallData() {
+export function useFirewallData(enabled: boolean) {
   const [zones, setZones] = useState<Zone[]>([]);
   const [zonePairs, setZonePairs] = useState<ZonePair[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -23,8 +23,10 @@ export function useFirewallData() {
   }, []);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    if (enabled) {
+      refresh();
+    }
+  }, [enabled, refresh]);
 
   return { zones, zonePairs, loading, error, refresh };
 }

@@ -15,7 +15,7 @@ function App() {
   const [showDisabled, setShowDisabled] = useState(false);
   const [selectedPair, setSelectedPair] = useState<ZonePair | null>(null);
 
-  const { zones, zonePairs, loading, refresh } = useFirewallData();
+  const { zones, zonePairs, loading, error, refresh } = useFirewallData(authed);
 
   useEffect(() => {
     api
@@ -81,6 +81,11 @@ function App() {
         loading={loading}
         onLogout={handleLogout}
       />
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/30 border-b border-red-200 dark:border-red-800 px-4 py-2 text-sm text-red-700 dark:text-red-300">
+          {error}
+        </div>
+      )}
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1">
           <ZoneGraph
