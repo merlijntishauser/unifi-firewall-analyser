@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from app.config import (
     UnifiCredentials,
     clear_runtime_credentials,
@@ -5,6 +7,7 @@ from app.config import (
     get_unifi_config,
     has_credentials,
     set_runtime_credentials,
+    settings,
 )
 
 
@@ -65,3 +68,30 @@ def test_get_credential_source_runtime() -> None:
     set_runtime_credentials(url="https://x.com", username="u", password="p")
     assert get_credential_source() == "runtime"
     clear_runtime_credentials()
+
+
+def test_get_unifi_config_from_env() -> None:
+    clear_runtime_credentials()
+    with (
+        patch.object(settings, "unifi_url", "https://env.local"),
+        patch.object(settings, "unifi_user", "envuser"),
+        patch.object(settings, "unifi_pass", "envpass"),
+        patch.object(settings, "unifi_site", "mysite"),
+        patch.object(settings, "unifi_verify_ssl", True),
+    ):
+        config = get_unifi_config()
+        assert config is not None
+        assert config.url == "https://env.local"
+        assert config.username == "envuser"
+        assert config.site == "mysite"
+        assert config.verify_ssl is True
+
+
+def test_get_credential_source_env() -> None:
+    clear_runtime_credentials()
+    with (
+        patch.object(settings, "unifi_url", "https://env.local"),
+        patch.object(settings, "unifi_user", "u"),
+        patch.object(settings, "unifi_pass", "p"),
+    ):
+        assert get_credential_source() == "env"

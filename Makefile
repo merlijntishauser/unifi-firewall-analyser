@@ -25,4 +25,4 @@ complexity:
 
 test:
 	docker compose exec api uv run pytest
-	docker compose exec frontend npx vitest run
+	docker compose exec frontend npx vitest run --coverage

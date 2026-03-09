@@ -1,5 +1,5 @@
 from app.models import Network, Rule, Zone
-from app.services.simulator import evaluate_rules, resolve_zone
+from app.services.simulator import _port_matches, _protocol_matches, evaluate_rules, resolve_zone
 
 
 def _make_zones() -> list[Zone]:
@@ -240,3 +240,68 @@ class TestEvaluateRules:
         result2 = evaluate_rules(rules, "zone-a", "zone-b", protocol="tcp", port=7999)
         assert result2.verdict == "BLOCK"
         assert result2.default_policy_used is True
+
+    def test_evaluate_rules_non_match_includes_reasons(self) -> None:
+        """Non-matching rules should include mismatch reasons in evaluations."""
+        rules = [
+            Rule(
+                id="rule-tcp-only",
+                name="TCP only",
+                enabled=True,
+                action="ALLOW",
+                source_zone_id="zone-a",
+                destination_zone_id="zone-b",
+                protocol="tcp",
+                port_ranges=["80"],
+                index=100,
+            ),
+        ]
+        result = evaluate_rules(rules, "zone-a", "zone-b", protocol="udp", port=53)
+        assert result.verdict == "BLOCK"
+        assert result.default_policy_used is True
+        assert len(result.evaluations) == 1
+        assert "protocol mismatch" in result.evaluations[0].reason
+        assert "port mismatch" in result.evaluations[0].reason
+
+
+class TestProtocolMatches:
+    def test_all_matches_everything(self) -> None:
+        assert _protocol_matches("all", "tcp") is True
+        assert _protocol_matches("all", None) is True
+
+    def test_none_protocol_matches_specific_rule(self) -> None:
+        assert _protocol_matches("tcp", None) is True
+
+    def test_exact_match(self) -> None:
+        assert _protocol_matches("tcp", "tcp") is True
+        assert _protocol_matches("tcp", "TCP") is True
+
+    def test_no_match(self) -> None:
+        assert _protocol_matches("tcp", "udp") is False
+
+
+class TestPortMatches:
+    def test_no_port_ranges_matches_all(self) -> None:
+        assert _port_matches([], 80) is True
+        assert _port_matches([], None) is True
+
+    def test_port_restriction_with_no_packet_port(self) -> None:
+        assert _port_matches(["80"], None) is False
+
+    def test_invalid_port_range_skipped(self) -> None:
+        assert _port_matches(["abc-def"], 80) is False
+
+    def test_invalid_single_port_skipped(self) -> None:
+        assert _port_matches(["abc"], 80) is False
+
+
+class TestResolveZoneEdgeCases:
+    def test_invalid_subnet_skipped(self) -> None:
+        zones = [
+            Zone(
+                id="zone-bad",
+                name="Bad",
+                networks=[Network(id="net-bad", name="Bad", subnet="not-a-subnet")],
+            ),
+        ]
+        assert resolve_zone("192.168.1.1", zones) is None

@@ -1,0 +1,457 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
+import App from "./App";
+import type { Zone, ZonePair } from "./api/types";
+
+// Mock the api client
+vi.mock("./api/client", () => ({
+  api: {
+    getAuthStatus: vi.fn(),
+    logout: vi.fn(),
+    login: vi.fn(),
+    getZones: vi.fn(),
+    getZonePairs: vi.fn(),
+    simulate: vi.fn(),
+  },
+}));
+
+import { api } from "./api/client";
+
+const mockGetAuthStatus = vi.mocked(api.getAuthStatus);
+const mockLogout = vi.mocked(api.logout);
+const mockGetZones = vi.mocked(api.getZones);
+const mockGetZonePairs = vi.mocked(api.getZonePairs);
+const mockLogin = vi.mocked(api.login);
+const mockSimulate = vi.mocked(api.simulate);
+
+// Capture the onEdgeSelect callback so tests can invoke it directly
+let capturedOnEdgeSelect: ((pair: ZonePair) => void) | null = null;
+
+// Mock @xyflow/react for ZoneGraph
+vi.mock("@xyflow/react", () => ({
+  ReactFlow: ({ children, colorMode, onEdgeClick, edges }: {
+    children: React.ReactNode;
+    colorMode: string;
+    onEdgeClick?: (event: unknown, edge: { source: string; target: string }) => void;
+    edges: Array<{ id: string; source: string; target: string; data?: { onLabelClick?: () => void } }>;
+  }) => (
+    <div data-testid="react-flow" data-color-mode={colorMode}>
+      {children}
+      {Array.isArray(edges) && edges.map((edge) => (
+        <button
+          key={edge.id}
+          data-testid={`edge-${edge.id}`}
+          onClick={(e) => {
+            onEdgeClick?.(e, edge);
+          }}
+        >
+          {edge.id}
+        </button>
+      ))}
+      {Array.isArray(edges) && edges.map((edge) => (
+        edge.data?.onLabelClick && (
+          <button
+            key={`label-${edge.id}`}
+            data-testid={`edge-label-${edge.id}`}
+            onClick={() => edge.data?.onLabelClick?.()}
+          >
+            label {edge.id}
+          </button>
+        )
+      ))}
+    </div>
+  ),
+  Background: () => <div data-testid="background" />,
+  Controls: () => <div data-testid="controls" />,
+  MiniMap: () => <div data-testid="minimap" />,
+  Handle: () => <div />,
+  Position: { Top: "top", Bottom: "bottom" },
+  useNodesState: (initial: unknown[]) => [initial, vi.fn(), vi.fn()],
+  useEdgesState: (initial: unknown[]) => [initial, vi.fn(), vi.fn()],
+  BaseEdge: () => <div />,
+  EdgeLabelRenderer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  getSmoothStepPath: () => ["", 0, 0],
+}));
+
+// Mock dagre layout - pass through
+vi.mock("./utils/layout", () => ({
+  getLayoutedElements: (nodes: unknown[], edges: unknown[]) => ({ nodes, edges }),
+}));
+
+const testZones: Zone[] = [
+  { id: "z1", name: "External", networks: [] },
+  { id: "z2", name: "Internal", networks: [] },
+];
+
+const testZonePairs: ZonePair[] = [
+  {
+    source_zone_id: "z1",
+    destination_zone_id: "z2",
+    rules: [
+      {
+        id: "r1",
+        name: "Allow HTTP",
+        description: "",
+        enabled: true,
+        action: "ALLOW",
+        source_zone_id: "z1",
+        destination_zone_id: "z2",
+        protocol: "TCP",
+        port_ranges: ["80"],
+        ip_ranges: [],
+        index: 1,
+        predefined: false,
+      },
+    ],
+    allow_count: 1,
+    block_count: 0,
+  },
+];
+
+describe("App", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    capturedOnEdgeSelect = null;
+  });
+
+  it("shows loading spinner initially", () => {
+    mockGetAuthStatus.mockReturnValue(new Promise(() => {}));
+    render(<App />);
+    expect(screen.getByText("Loading...")).toBeInTheDocument();
+  });
+
+  it("shows login screen when not authenticated", async () => {
+    mockGetAuthStatus.mockResolvedValue({
+      configured: false,
+      source: "none",
+      url: "",
+    });
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Connect to UniFi Controller")).toBeInTheDocument();
+    });
+  });
+
+  it("shows login screen when auth status check fails", async () => {
+    mockGetAuthStatus.mockRejectedValue(new Error("Network error"));
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Connect to UniFi Controller")).toBeInTheDocument();
+    });
+  });
+
+  it("shows main UI when authenticated", async () => {
+    mockGetAuthStatus.mockResolvedValue({
+      configured: true,
+      source: "env",
+      url: "https://unifi.local",
+    });
+    mockGetZones.mockResolvedValue([]);
+    mockGetZonePairs.mockResolvedValue([]);
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("UniFi Firewall Analyser")).toBeInTheDocument();
+    });
+  });
+
+  it("transitions from login to main UI after successful login", async () => {
+    mockGetAuthStatus.mockResolvedValue({
+      configured: false,
+      source: "none",
+      url: "",
+    });
+    mockLogin.mockResolvedValue(undefined);
+    mockGetZones.mockResolvedValue([]);
+    mockGetZonePairs.mockResolvedValue([]);
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Connect to UniFi Controller")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("Controller URL"), {
+      target: { value: "https://192.168.1.1" },
+    });
+    fireEvent.change(screen.getByLabelText("Username"), {
+      target: { value: "admin" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "pass" },
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Connect" }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("UniFi Firewall Analyser")).toBeInTheDocument();
+    });
+  });
+
+  it("logs out and shows login screen", async () => {
+    mockGetAuthStatus.mockResolvedValue({
+      configured: true,
+      source: "env",
+      url: "https://unifi.local",
+    });
+    mockGetZones.mockResolvedValue([]);
+    mockGetZonePairs.mockResolvedValue([]);
+    mockLogout.mockResolvedValue(undefined);
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("UniFi Firewall Analyser")).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Connect to UniFi Controller")).toBeInTheDocument();
+    });
+  });
+
+  it("shows error when data fetch fails", async () => {
+    mockGetAuthStatus.mockResolvedValue({
+      configured: true,
+      source: "env",
+      url: "https://unifi.local",
+    });
+    mockGetZones.mockRejectedValue(new Error("Fetch failed"));
+    mockGetZonePairs.mockResolvedValue([]);
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Fetch failed")).toBeInTheDocument();
+    });
+  });
+
+  it("toggles color mode", async () => {
+    mockGetAuthStatus.mockResolvedValue({
+      configured: true,
+      source: "env",
+      url: "https://unifi.local",
+    });
+    mockGetZones.mockResolvedValue([]);
+    mockGetZonePairs.mockResolvedValue([]);
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Dark" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Dark" }));
+
+    expect(screen.getByRole("button", { name: "Light" })).toBeInTheDocument();
+  });
+
+  it("toggles show disabled rules and filters disabled rules", async () => {
+    mockGetAuthStatus.mockResolvedValue({
+      configured: true,
+      source: "env",
+      url: "https://unifi.local",
+    });
+    mockGetZones.mockResolvedValue(testZones);
+    mockGetZonePairs.mockResolvedValue([
+      {
+        source_zone_id: "z1",
+        destination_zone_id: "z2",
+        rules: [
+          {
+            id: "r1",
+            name: "Enabled Rule",
+            description: "",
+            enabled: true,
+            action: "ALLOW",
+            source_zone_id: "z1",
+            destination_zone_id: "z2",
+            protocol: "TCP",
+            port_ranges: [],
+            ip_ranges: [],
+            index: 1,
+            predefined: false,
+          },
+          {
+            id: "r2",
+            name: "Disabled Rule",
+            description: "",
+            enabled: false,
+            action: "BLOCK",
+            source_zone_id: "z1",
+            destination_zone_id: "z2",
+            protocol: "TCP",
+            port_ranges: [],
+            ip_ranges: [],
+            index: 2,
+            predefined: false,
+          },
+        ],
+        allow_count: 1,
+        block_count: 1,
+      },
+    ]);
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Show disabled rules")).toBeInTheDocument();
+    });
+
+    expect(screen.getByLabelText("Show disabled rules")).not.toBeChecked();
+
+    fireEvent.click(screen.getByLabelText("Show disabled rules"));
+    expect(screen.getByLabelText("Show disabled rules")).toBeChecked();
+  });
+
+  it("calls refresh when Refresh button is clicked", async () => {
+    mockGetAuthStatus.mockResolvedValue({
+      configured: true,
+      source: "env",
+      url: "https://unifi.local",
+    });
+    mockGetZones.mockResolvedValue([]);
+    mockGetZonePairs.mockResolvedValue([]);
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Refresh" })).toBeInTheDocument();
+    });
+
+    mockGetZones.mockResolvedValue([]);
+    mockGetZonePairs.mockResolvedValue([]);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    });
+
+    expect(mockGetZones).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows RulePanel when an edge is clicked and closes it", async () => {
+    mockGetAuthStatus.mockResolvedValue({
+      configured: true,
+      source: "env",
+      url: "https://unifi.local",
+    });
+    mockGetZones.mockResolvedValue(testZones);
+    mockGetZonePairs.mockResolvedValue(testZonePairs);
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("UniFi Firewall Analyser")).toBeInTheDocument();
+    });
+
+    // Click the edge to select a zone pair - the mock ReactFlow renders edge buttons
+    await waitFor(() => {
+      expect(screen.getByTestId("edge-z1->z2")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("edge-z1->z2"));
+
+    // RulePanel should now be visible with the zone pair
+    await waitFor(() => {
+      expect(screen.getByLabelText("Close panel")).toBeInTheDocument();
+    });
+
+    // Verify zone names are shown in the panel header
+    const header = screen.getByRole("heading", { level: 2 });
+    expect(header.textContent).toContain("External");
+    expect(header.textContent).toContain("Internal");
+
+    // Close the panel
+    fireEvent.click(screen.getByLabelText("Close panel"));
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText("Close panel")).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows RulePanel via edge label click (onLabelClick)", async () => {
+    mockGetAuthStatus.mockResolvedValue({
+      configured: true,
+      source: "env",
+      url: "https://unifi.local",
+    });
+    mockGetZones.mockResolvedValue(testZones);
+    mockGetZonePairs.mockResolvedValue(testZonePairs);
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("UniFi Firewall Analyser")).toBeInTheDocument();
+    });
+
+    // Click the edge label button (exercises onLabelClick / buildElements callback)
+    await waitFor(() => {
+      expect(screen.getByTestId("edge-label-z1->z2")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("edge-label-z1->z2"));
+
+    // RulePanel should be visible
+    await waitFor(() => {
+      expect(screen.getByLabelText("Close panel")).toBeInTheDocument();
+    });
+  });
+
+  it("shows 'Unknown' for zone names when zone is not found", async () => {
+    mockGetAuthStatus.mockResolvedValue({
+      configured: true,
+      source: "env",
+      url: "https://unifi.local",
+    });
+    // Return zones but with IDs that don't match the zone pair
+    mockGetZones.mockResolvedValue([
+      { id: "z999", name: "Other", networks: [] },
+    ]);
+    mockGetZonePairs.mockResolvedValue([
+      {
+        source_zone_id: "z1",
+        destination_zone_id: "z2",
+        rules: [
+          {
+            id: "r1",
+            name: "Rule",
+            description: "",
+            enabled: true,
+            action: "ALLOW",
+            source_zone_id: "z1",
+            destination_zone_id: "z2",
+            protocol: "TCP",
+            port_ranges: [],
+            ip_ranges: [],
+            index: 1,
+            predefined: false,
+          },
+        ],
+        allow_count: 1,
+        block_count: 0,
+      },
+    ]);
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("edge-z1->z2")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("edge-z1->z2"));
+
+    // Panel should show "Unknown" for both zone names since z1/z2 are not in the zones list
+    await waitFor(() => {
+      const header = screen.getByRole("heading", { level: 2 });
+      expect(header.textContent).toContain("Unknown");
+    });
+  });
+});
