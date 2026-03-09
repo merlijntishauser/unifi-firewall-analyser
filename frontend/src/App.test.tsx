@@ -506,7 +506,7 @@ describe("App", () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("zone-matrix")).toBeInTheDocument();
+      expect(screen.getByTestId("matrix-zone-z1")).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByTestId("matrix-zone-z1"));
@@ -526,7 +526,7 @@ describe("App", () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("zone-matrix")).toBeInTheDocument();
+      expect(screen.getByTestId("matrix-zone-z1")).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByTestId("matrix-zone-z1"));
@@ -538,7 +538,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /back/i }));
 
     await waitFor(() => {
-      expect(screen.getByTestId("zone-matrix")).toBeInTheDocument();
+      expect(screen.getByTestId("matrix-zone-z1")).toBeInTheDocument();
     });
   });
 
