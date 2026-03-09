@@ -6,6 +6,7 @@ import { useFirewallData } from "./hooks/useFirewallData";
 import LoginScreen from "./components/LoginScreen";
 import Toolbar from "./components/Toolbar";
 import ZoneGraph from "./components/ZoneGraph";
+import ZoneMatrix from "./components/ZoneMatrix";
 import RulePanel from "./components/RulePanel";
 
 function App() {
@@ -14,6 +15,7 @@ function App() {
   const [colorMode, setColorMode] = useState<ColorMode>("light");
   const [showDisabled, setShowDisabled] = useState(false);
   const [selectedPair, setSelectedPair] = useState<ZonePair | null>(null);
+  const [focusZoneId, setFocusZoneId] = useState<string | null>(null);
 
   const { zones, zonePairs, loading, error, refresh } = useFirewallData(authed);
 
@@ -56,6 +58,16 @@ function App() {
     setSelectedPair(pair);
   }, []);
 
+  const handleZoneClick = useCallback((zoneId: string) => {
+    setFocusZoneId(zoneId);
+    setSelectedPair(null);
+  }, []);
+
+  const handleBack = useCallback(() => {
+    setFocusZoneId(null);
+    setSelectedPair(null);
+  }, []);
+
   if (authLoading) {
     return (
       <div className="h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 text-gray-500 dark:text-gray-400">
@@ -87,13 +99,31 @@ function App() {
         </div>
       )}
       <div className="flex-1 flex overflow-hidden">
-        <div className="flex-1">
-          <ZoneGraph
-            zones={zones}
-            zonePairs={filteredZonePairs}
-            colorMode={colorMode}
-            onEdgeSelect={handleEdgeSelect}
-          />
+        <div className="flex-1 relative">
+          {focusZoneId ? (
+            <>
+              <button
+                onClick={handleBack}
+                className="absolute top-3 left-3 z-10 rounded bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 shadow-sm cursor-pointer"
+              >
+                Back to matrix
+              </button>
+              <ZoneGraph
+                zones={zones}
+                zonePairs={filteredZonePairs}
+                colorMode={colorMode}
+                onEdgeSelect={handleEdgeSelect}
+                focusZoneId={focusZoneId}
+              />
+            </>
+          ) : (
+            <ZoneMatrix
+              zones={zones}
+              zonePairs={filteredZonePairs}
+              onCellClick={handleEdgeSelect}
+              onZoneClick={handleZoneClick}
+            />
+          )}
         </div>
         {selectedPair && (
           <RulePanel
