@@ -1,5 +1,8 @@
+from unittest.mock import patch
+
 import pytest
 from httpx import AsyncClient
+from unifi_topology.adapters.unifi_api import UnifiApiError
 
 from app.config import set_runtime_credentials
 
@@ -44,3 +47,12 @@ async def test_zones_contain_expected_zones(client: AsyncClient) -> None:
     assert "Internal" in zone_names
     assert "Guest" in zone_names
     assert "IoT" in zone_names
+
+
+@pytest.mark.anyio
+async def test_zones_unifi_api_error_returns_502(client: AsyncClient) -> None:
+    _login()
+    with patch("app.services.firewall.fetch_firewall_zones", side_effect=UnifiApiError("HTTP 404")):
+        resp = await client.get("/api/zones")
+    assert resp.status_code == 502
+    assert "HTTP 404" in resp.json()["detail"]

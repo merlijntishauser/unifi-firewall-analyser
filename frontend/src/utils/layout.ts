@@ -1,4 +1,4 @@
-import * as dagre from "@dagrejs/dagre";
+import dagre from "@dagrejs/dagre";
 import type { Node, Edge } from "@xyflow/react";
 
 const NODE_WIDTH = 220;

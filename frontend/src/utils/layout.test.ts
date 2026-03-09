@@ -57,12 +57,13 @@ vi.mock("@dagrejs/dagre", () => {
     }
   }
 
-  return {
+  const mod = {
     graphlib: { Graph },
     layout: (g: Graph) => {
       (g as unknown as { layoutNodes: () => void }).layoutNodes();
     },
   };
+  return { default: mod, ...mod };
 });
 
 import { getLayoutedElements } from "./layout";
