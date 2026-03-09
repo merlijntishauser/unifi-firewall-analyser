@@ -58,6 +58,11 @@ function App() {
     setSelectedPair(pair);
   }, []);
 
+  const handleCellClick = useCallback((pair: ZonePair) => {
+    setFocusZoneId(pair.source_zone_id);
+    setSelectedPair(pair);
+  }, []);
+
   const handleZoneClick = useCallback((zoneId: string) => {
     setFocusZoneId(zoneId);
     setSelectedPair(null);
@@ -120,7 +125,7 @@ function App() {
             <ZoneMatrix
               zones={zones}
               zonePairs={filteredZonePairs}
-              onCellClick={handleEdgeSelect}
+              onCellClick={handleCellClick}
               onZoneClick={handleZoneClick}
             />
           )}

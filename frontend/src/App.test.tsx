@@ -542,7 +542,7 @@ describe("App", () => {
     });
   });
 
-  it("opens RulePanel when matrix cell is clicked", async () => {
+  it("opens RulePanel and graph view when matrix cell is clicked", async () => {
     mockGetAuthStatus.mockResolvedValue({ configured: true, source: "env", url: "https://unifi.local" });
     mockGetZones.mockResolvedValue(testZones);
     mockGetZonePairs.mockResolvedValue(testZonePairs);
@@ -558,5 +558,7 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByLabelText("Close panel")).toBeInTheDocument();
     });
+    expect(screen.getByTestId("react-flow")).toBeInTheDocument();
+    expect(screen.queryByTestId("zone-matrix")).not.toBeInTheDocument();
   });
 });
