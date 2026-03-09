@@ -1,28 +1,34 @@
-.PHONY: up down build quality complexity test backend-install frontend-install
+.PHONY: up down build quality complexity test backend-install frontend-install ci help
 
-backend-install:
+help: ## Show this help
+	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
+
+backend-install: ## Install backend dependencies
 	cd backend && uv sync
 
-frontend-install:
+frontend-install: ## Install frontend dependencies
 	cd frontend && npm install
 
-up:
+up: ## Start containers
 	docker compose up -d
 
-down:
+down: ## Stop containers
 	docker compose down
 
-build:
+build: ## Build containers
 	docker compose build
 
-quality:
+quality: ## Run linters via Docker (ruff, mypy, tsc)
 	docker compose exec api uv run ruff check app/
 	docker compose exec api uv run mypy app/
 	docker compose exec frontend npx tsc --noEmit
 
-complexity:
+complexity: ## Check code complexity
 	@./scripts/check-complexity.sh
 
-test:
+test: ## Run tests via Docker
 	docker compose exec api uv run pytest
 	docker compose exec frontend npx vitest run --coverage
+
+ci: ## Run all CI checks locally
+	@./scripts/ci-checks.sh
