@@ -32,9 +32,6 @@ vi.mock("@dagrejs/dagre", () => {
 
     layoutNodes() {
       // Simple top-to-bottom layout: position nodes based on topological order
-      const positions = new Map<string, { x: number; y: number }>();
-      let y = 0;
-      const visited = new Set<string>();
       const rank = new Map<string, number>();
 
       // Assign ranks based on edges (simple BFS from sources)

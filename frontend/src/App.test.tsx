@@ -22,10 +22,7 @@ const mockLogout = vi.mocked(api.logout);
 const mockGetZones = vi.mocked(api.getZones);
 const mockGetZonePairs = vi.mocked(api.getZonePairs);
 const mockLogin = vi.mocked(api.login);
-const mockSimulate = vi.mocked(api.simulate);
-
-// Capture the onEdgeSelect callback so tests can invoke it directly
-let capturedOnEdgeSelect: ((pair: ZonePair) => void) | null = null;
+vi.mocked(api.simulate);
 
 // Mock @xyflow/react for ZoneGraph
 vi.mock("@xyflow/react", () => ({
@@ -111,7 +108,6 @@ const testZonePairs: ZonePair[] = [
 describe("App", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    capturedOnEdgeSelect = null;
   });
 
   it("shows loading spinner initially", () => {

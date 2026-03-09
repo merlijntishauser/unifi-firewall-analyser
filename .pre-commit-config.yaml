@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ci-checks
+        name: CI checks
+        entry: scripts/ci-checks.sh
+        language: script
+        pass_filenames: false
+        always_run: true
