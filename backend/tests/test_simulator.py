@@ -263,6 +263,27 @@ class TestEvaluateRules:
         assert "protocol mismatch" in result.evaluations[0].reason
         assert "port mismatch" in result.evaluations[0].reason
 
+    def test_evaluate_rules_protocol_mismatch_only(self) -> None:
+        """When protocol mismatches but port matches, only protocol reason is listed."""
+        rules = [
+            Rule(
+                id="rule-tcp-80",
+                name="TCP 80",
+                enabled=True,
+                action="ALLOW",
+                source_zone_id="zone-a",
+                destination_zone_id="zone-b",
+                protocol="tcp",
+                port_ranges=["80"],
+                index=100,
+            ),
+        ]
+        result = evaluate_rules(rules, "zone-a", "zone-b", protocol="udp", port=80)
+        assert result.verdict == "BLOCK"
+        assert len(result.evaluations) == 1
+        assert "protocol mismatch" in result.evaluations[0].reason
+        assert "port mismatch" not in result.evaluations[0].reason
+
 
 class TestProtocolMatches:
     def test_all_matches_everything(self) -> None:
