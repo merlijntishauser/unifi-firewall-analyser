@@ -10,16 +10,19 @@ vi.mock("@xyflow/react", () => ({
     id,
     path,
     style,
+    markerEnd,
   }: {
     id: string;
     path: string;
     style: Record<string, unknown>;
+    markerEnd?: string;
   }) => (
     <div
       data-testid={`edge-${id}`}
       data-path={path}
       data-stroke={style.stroke}
       data-stroke-width={style.strokeWidth}
+      data-marker-end={markerEnd ?? "none"}
     />
   ),
   EdgeLabelRenderer: ({ children }: { children: React.ReactNode }) => (
@@ -63,12 +66,21 @@ function makeEdgeProps(
       blockCount: 0,
       onLabelClick: vi.fn(),
     },
+    markerEnd: "url(#arrow)",
     selected: false,
     ...overrides,
   } as unknown as EdgeProps<RuleEdge>;
 }
 
 describe("RuleEdgeComponent", () => {
+  describe("arrowhead", () => {
+    it("passes markerEnd to BaseEdge", () => {
+      render(<RuleEdgeComponent {...makeEdgeProps()} />);
+      const edge = screen.getByTestId("edge-edge-1");
+      expect(edge).toHaveAttribute("data-marker-end", "url(#arrow)");
+    });
+  });
+
   describe("edge coloring by allow/block ratio", () => {
     it("uses green color when only allows", () => {
       render(

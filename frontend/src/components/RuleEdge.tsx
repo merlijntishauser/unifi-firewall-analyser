@@ -53,6 +53,7 @@ export default function RuleEdgeComponent({
   targetPosition,
   data,
   selected,
+  markerEnd,
 }: EdgeProps<RuleEdge>) {
   const { rules, allowCount, blockCount, onLabelClick } = resolveData(data);
   const color = getEdgeColor(allowCount, blockCount);
@@ -67,7 +68,7 @@ export default function RuleEdgeComponent({
   });
 
   // Position label near source (not midpoint) to avoid overlapping intermediate nodes
-  const LABEL_OFFSET = 60;
+  const LABEL_OFFSET = 90;
   const dy = targetY - sourceY;
   const clampedOffset = Math.sign(dy) * Math.min(LABEL_OFFSET, Math.abs(dy) * 0.4);
   const labelPosX = (sourceX + targetX) / 2;
@@ -81,6 +82,7 @@ export default function RuleEdgeComponent({
       <BaseEdge
         id={id}
         path={edgePath}
+        markerEnd={markerEnd}
         style={{
           stroke: color,
           strokeWidth: selected ? 3 : 2,
