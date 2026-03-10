@@ -318,7 +318,7 @@ describe("RuleEdgeComponent", () => {
   });
 
   describe("click handler", () => {
-    it("calls onLabelClick when label card is clicked", () => {
+    it("calls onLabelClick when rule card is clicked", () => {
       const onClick = vi.fn();
       render(
         <RuleEdgeComponent
@@ -354,6 +354,55 @@ describe("RuleEdgeComponent", () => {
       expect(() => {
         fireEvent.click(screen.getByText("Allow HTTP"));
       }).not.toThrow();
+    });
+
+    it("pins the card open when pill is clicked", () => {
+      render(
+        <RuleEdgeComponent
+          {...makeEdgeProps({
+            data: {
+              rules: [allowRule],
+              allowCount: 1,
+              blockCount: 0,
+            },
+          })}
+        />,
+      );
+
+      const cardWrapper = screen.getByText("Allow HTTP").closest("button")!.parentElement!;
+      // Initially not pinned - card has opacity-0
+      expect(cardWrapper.className).toContain("opacity-0");
+
+      // Click the pill (the element showing the count "1")
+      fireEvent.click(screen.getByText("1"));
+
+      // Now card should be pinned open - opacity-100
+      expect(cardWrapper.className).toContain("opacity-100");
+    });
+
+    it("unpins the card when pill is clicked again", () => {
+      render(
+        <RuleEdgeComponent
+          {...makeEdgeProps({
+            data: {
+              rules: [allowRule],
+              allowCount: 1,
+              blockCount: 0,
+            },
+          })}
+        />,
+      );
+
+      const pill = screen.getByText("1");
+
+      // Click to pin
+      fireEvent.click(pill);
+      const cardWrapper = screen.getByText("Allow HTTP").closest("button")!.parentElement!;
+      expect(cardWrapper.className).toContain("opacity-100");
+
+      // Click again to unpin
+      fireEvent.click(pill);
+      expect(cardWrapper.className).toContain("opacity-0");
     });
   });
 
@@ -406,7 +455,7 @@ describe("RuleEdgeComponent", () => {
       expect(screen.getByTestId("edge-edge-1")).toBeInTheDocument();
     });
 
-    it("places label on opposite side for negative offset", () => {
+    it("positions card to the left for negative offset", () => {
       render(
         <RuleEdgeComponent
           {...makeEdgeProps({
@@ -419,11 +468,11 @@ describe("RuleEdgeComponent", () => {
           })}
         />,
       );
-      const button = screen.getByText("Allow HTTP").closest("button") as HTMLElement;
-      expect(button.style.transform).toContain("calc(-100% - 12px)");
+      const cardWrapper = screen.getByText("Allow HTTP").closest("button")!.parentElement!;
+      expect(cardWrapper.className).toContain("right-full");
     });
 
-    it("places label on right side for positive offset", () => {
+    it("positions card to the right for positive offset", () => {
       render(
         <RuleEdgeComponent
           {...makeEdgeProps({
@@ -436,8 +485,36 @@ describe("RuleEdgeComponent", () => {
           })}
         />,
       );
-      const button = screen.getByText("Allow HTTP").closest("button") as HTMLElement;
-      expect(button.style.transform).toContain("translate(12px");
+      const cardWrapper = screen.getByText("Allow HTTP").closest("button")!.parentElement!;
+      expect(cardWrapper.className).toContain("left-full");
+    });
+  });
+
+  describe("compact pill indicator", () => {
+    it("shows rule count in pill", () => {
+      render(
+        <RuleEdgeComponent
+          {...makeEdgeProps({
+            data: {
+              rules: [allowRule, blockRule],
+              allowCount: 1,
+              blockCount: 1,
+            },
+          })}
+        />,
+      );
+      expect(screen.getByText("2")).toBeInTheDocument();
+    });
+
+    it("shows 0 when no rules", () => {
+      render(
+        <RuleEdgeComponent
+          {...makeEdgeProps({
+            data: { rules: [], allowCount: 0, blockCount: 0 },
+          })}
+        />,
+      );
+      expect(screen.getByText("0")).toBeInTheDocument();
     });
   });
 
