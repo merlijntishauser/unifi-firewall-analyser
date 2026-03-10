@@ -2,6 +2,7 @@ import {
   BaseEdge,
   EdgeLabelRenderer,
   getSmoothStepPath,
+  Position,
   type EdgeProps,
   type Edge,
 } from "@xyflow/react";
@@ -72,13 +73,17 @@ export default function RuleEdgeComponent({
   const EDGE_OFFSET_PX = 25;
   const offsetX = edgeOffset * EDGE_OFFSET_PX;
 
+  // For upward edges (source below target), flip handle positions so the path
+  // goes straight up instead of S-curving and the arrowhead points upward.
+  const isUpward = sourceY > targetY;
+
   const [edgePath] = getSmoothStepPath({
     sourceX: sourceX + offsetX,
     sourceY,
-    sourcePosition,
+    sourcePosition: isUpward ? Position.Top : sourcePosition,
     targetX: targetX + offsetX,
     targetY,
-    targetPosition,
+    targetPosition: isUpward ? Position.Bottom : targetPosition,
   });
 
   // Position label near source (not midpoint) to avoid overlapping intermediate nodes

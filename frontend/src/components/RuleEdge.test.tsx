@@ -29,6 +29,7 @@ vi.mock("@xyflow/react", () => ({
     <div data-testid="edge-label-renderer">{children}</div>
   ),
   getSmoothStepPath: () => ["M0,0 L100,100", 50, 50],
+  Position: { Left: "left", Top: "top", Right: "right", Bottom: "bottom" },
 }));
 
 const allowRule: RuleSummary = {
