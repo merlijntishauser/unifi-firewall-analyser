@@ -18,14 +18,24 @@ function App() {
   const [selectedPair, setSelectedPair] = useState<ZonePair | null>(null);
   const [focusZoneIds, setFocusZoneIds] = useState<string[] | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [aiConfigured, setAiConfigured] = useState(false);
 
   const { zones, zonePairs, loading, error, refresh } = useFirewallData(authed);
+
+  const refreshAiConfig = useCallback(() => {
+    api.getAiConfig()
+      .then((config) => setAiConfigured(config.has_key))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     api
       .getAuthStatus()
       .then((status) => {
         setAuthed(status.configured);
+        if (status.configured) {
+          refreshAiConfig();
+        }
       })
       .catch(() => {
         setAuthed(false);
@@ -33,7 +43,7 @@ function App() {
       .finally(() => {
         setAuthLoading(false);
       });
-  }, []);
+  }, [refreshAiConfig]);
 
   const handleLogout = useCallback(async () => {
     await api.logout();
@@ -101,7 +111,7 @@ function App() {
         onLogout={handleLogout}
         onOpenSettings={() => setSettingsOpen(true)}
       />
-      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <SettingsModal onClose={() => { setSettingsOpen(false); refreshAiConfig(); }} />}
       {error && (
         <div className="bg-red-50 dark:bg-red-900/30 border-b border-red-200 dark:border-red-800 px-4 py-2 text-sm text-red-700 dark:text-red-300">
           {error}
@@ -136,6 +146,7 @@ function App() {
         </div>
         {selectedPair && (
           <RulePanel
+            key={`${selectedPair.source_zone_id}-${selectedPair.destination_zone_id}`}
             pair={selectedPair}
             sourceZoneName={
               zoneNameMap.get(selectedPair.source_zone_id) ?? "Unknown"
@@ -143,6 +154,7 @@ function App() {
             destZoneName={
               zoneNameMap.get(selectedPair.destination_zone_id) ?? "Unknown"
             }
+            aiConfigured={aiConfigured}
             onClose={() => setSelectedPair(null)}
           />
         )}

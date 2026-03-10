@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { api } from "../api/client";
-import type { ZonePair, Rule, SimulateResponse } from "../api/types";
+import type { ZonePair, Rule, Finding, SimulateResponse } from "../api/types";
 
 interface RulePanelProps {
   pair: ZonePair;
   sourceZoneName: string;
   destZoneName: string;
+  aiConfigured: boolean;
   onClose: () => void;
 }
 
@@ -67,6 +68,7 @@ export default function RulePanel({
   pair,
   sourceZoneName,
   destZoneName,
+  aiConfigured,
   onClose,
 }: RulePanelProps) {
   const [srcIp, setSrcIp] = useState("");
@@ -76,8 +78,33 @@ export default function RulePanel({
   const [simLoading, setSimLoading] = useState(false);
   const [simResult, setSimResult] = useState<SimulateResponse | null>(null);
   const [simError, setSimError] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiFindings, setAiFindings] = useState<Finding[]>([]);
 
-  const sortedRules = [...pair.rules].sort((a, b) => a.index - b.index);
+  const sortedRules = useMemo(() => [...pair.rules].sort((a, b) => a.index - b.index), [pair.rules]);
+
+  const allFindings = useMemo<Finding[]>(() => [
+    ...(pair.analysis?.findings ?? []),
+    ...aiFindings,
+  ], [pair.analysis?.findings, aiFindings]);
+
+  async function handleAiAnalyze() {
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const result = await api.analyzeWithAi({
+        source_zone_name: sourceZoneName,
+        destination_zone_name: destZoneName,
+        rules: pair.rules,
+      });
+      setAiFindings(result.findings);
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : "AI analysis failed");
+    } finally {
+      setAiLoading(false);
+    }
+  }
 
   async function handleSimulate(e: FormEvent) {
     e.preventDefault();
@@ -127,17 +154,22 @@ export default function RulePanel({
                 {pair.analysis.score}/100
               </span>
             </div>
-            {pair.analysis.findings.length > 0 && (
+            {allFindings.length > 0 && (
               <div className="space-y-1.5">
                 <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Findings ({pair.analysis.findings.length})
+                  Findings ({allFindings.length})
                 </h3>
-                {pair.analysis.findings.map((finding, idx) => (
+                {allFindings.map((finding, idx) => (
                   <div key={finding.id ?? idx} className="rounded border border-gray-200 dark:border-gray-700 p-2 text-xs">
                     <div className="flex items-center gap-1.5">
                       <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${severityBadge(finding.severity)}`}>
                         {finding.severity}
                       </span>
+                      {finding.source === "ai" && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300">
+                          AI
+                        </span>
+                      )}
                       <span className="font-medium text-gray-900 dark:text-gray-100">{finding.title}</span>
                     </div>
                     <p className="mt-1 text-gray-500 dark:text-gray-400">{finding.description}</p>
@@ -146,6 +178,20 @@ export default function RulePanel({
               </div>
             )}
           </div>
+        )}
+        {aiError && (
+          <div className="rounded bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 p-2 text-xs text-red-700 dark:text-red-300">
+            {aiError}
+          </div>
+        )}
+        {aiConfigured && (
+          <button
+            onClick={handleAiAnalyze}
+            disabled={aiLoading}
+            className="w-full rounded bg-purple-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+          >
+            {aiLoading ? "Analyzing..." : "Analyze with AI"}
+          </button>
         )}
 
         {/* Rule list */}

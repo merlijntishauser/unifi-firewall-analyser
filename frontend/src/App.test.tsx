@@ -28,6 +28,7 @@ const mockLogout = vi.mocked(api.logout);
 const mockGetZones = vi.mocked(api.getZones);
 const mockGetZonePairs = vi.mocked(api.getZonePairs);
 const mockLogin = vi.mocked(api.login);
+const mockGetAiConfig = vi.mocked(api.getAiConfig);
 vi.mocked(api.simulate);
 
 // Mock @xyflow/react for ZoneGraph
@@ -142,6 +143,13 @@ const testZonePairs: ZonePair[] = [
 describe("App", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetAiConfig.mockResolvedValue({
+      base_url: "",
+      model: "",
+      provider_type: "",
+      has_key: false,
+      source: "none",
+    });
   });
 
   it("shows loading spinner initially", () => {
@@ -569,5 +577,79 @@ describe("App", () => {
     });
     expect(screen.getByTestId("react-flow")).toBeInTheDocument();
     expect(screen.queryByTestId("zone-matrix")).not.toBeInTheDocument();
+  });
+
+  it("calls getAiConfig when authenticated", async () => {
+    mockGetAuthStatus.mockResolvedValue({
+      configured: true,
+      source: "env",
+      url: "https://unifi.local",
+    });
+    mockGetZones.mockResolvedValue([]);
+    mockGetZonePairs.mockResolvedValue([]);
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("UniFi Firewall Analyser")).toBeInTheDocument();
+    });
+
+    expect(mockGetAiConfig).toHaveBeenCalled();
+  });
+
+  it("shows Analyze with AI button when AI is configured", async () => {
+    mockGetAuthStatus.mockResolvedValue({
+      configured: true,
+      source: "env",
+      url: "https://unifi.local",
+    });
+    mockGetAiConfig.mockResolvedValue({
+      base_url: "",
+      model: "",
+      provider_type: "",
+      has_key: true,
+      source: "none",
+    });
+    mockGetZones.mockResolvedValue(testZones);
+    mockGetZonePairs.mockResolvedValue(testZonePairs);
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("matrix-cell-z1-z2")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("matrix-cell-z1-z2"));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Close panel")).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("button", { name: "Analyze with AI" })).toBeInTheDocument();
+  });
+
+  it("does not show Analyze with AI button when AI config fails", async () => {
+    mockGetAuthStatus.mockResolvedValue({
+      configured: true,
+      source: "env",
+      url: "https://unifi.local",
+    });
+    mockGetAiConfig.mockRejectedValue(new Error("AI config fetch failed"));
+    mockGetZones.mockResolvedValue(testZones);
+    mockGetZonePairs.mockResolvedValue(testZonePairs);
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("matrix-cell-z1-z2")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("matrix-cell-z1-z2"));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Close panel")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole("button", { name: "Analyze with AI" })).not.toBeInTheDocument();
   });
 });
