@@ -356,6 +356,90 @@ describe("RuleEdgeComponent", () => {
     });
   });
 
+  describe("direction header", () => {
+    it("shows direction header when zone names are provided", () => {
+      render(
+        <RuleEdgeComponent
+          {...makeEdgeProps({
+            data: {
+              rules: [allowRule],
+              allowCount: 1,
+              blockCount: 0,
+              sourceZoneName: "External",
+              destZoneName: "Internal",
+            },
+          })}
+        />,
+      );
+      // The arrow entity renders as the → character
+      const header = screen.getByText(/External/);
+      expect(header).toBeInTheDocument();
+      expect(header.textContent).toContain("Internal");
+    });
+
+    it("does not show direction header when zone names are missing", () => {
+      render(<RuleEdgeComponent {...makeEdgeProps()} />);
+      const labelRenderer = screen.getByTestId("edge-label-renderer");
+      // No border-b element for direction header
+      const headers = labelRenderer.querySelectorAll(".border-b");
+      expect(headers.length).toBe(0);
+    });
+  });
+
+  describe("bidirectional edge offset", () => {
+    it("offsets edge path horizontally when edgeOffset is set", () => {
+      // With edgeOffset=-1, sourceX/targetX should shift by -25px
+      // getSmoothStepPath mock returns fixed path, but we can verify the component renders
+      render(
+        <RuleEdgeComponent
+          {...makeEdgeProps({
+            data: {
+              rules: [allowRule],
+              allowCount: 1,
+              blockCount: 0,
+              edgeOffset: -1,
+            },
+          })}
+        />,
+      );
+      expect(screen.getByTestId("edge-edge-1")).toBeInTheDocument();
+    });
+
+    it("places label on opposite side for negative offset", () => {
+      render(
+        <RuleEdgeComponent
+          {...makeEdgeProps({
+            data: {
+              rules: [allowRule],
+              allowCount: 1,
+              blockCount: 0,
+              edgeOffset: -1,
+            },
+          })}
+        />,
+      );
+      const button = screen.getByText("Allow HTTP").closest("button") as HTMLElement;
+      expect(button.style.transform).toContain("calc(-100% - 12px)");
+    });
+
+    it("places label on right side for positive offset", () => {
+      render(
+        <RuleEdgeComponent
+          {...makeEdgeProps({
+            data: {
+              rules: [allowRule],
+              allowCount: 1,
+              blockCount: 0,
+              edgeOffset: 1,
+            },
+          })}
+        />,
+      );
+      const button = screen.getByText("Allow HTTP").closest("button") as HTMLElement;
+      expect(button.style.transform).toContain("translate(12px");
+    });
+  });
+
   describe("handles undefined data gracefully", () => {
     it("defaults to amber color and empty rules when data is undefined", () => {
       render(

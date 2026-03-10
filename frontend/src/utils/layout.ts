@@ -8,13 +8,15 @@ export function getLayoutedElements(
   nodes: Node[],
   edges: Edge[],
 ): { nodes: Node[]; edges: Edge[] } {
-  const g = new dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
+  const g = new dagre.graphlib.Graph({ multigraph: true }).setDefaultEdgeLabel(
+    () => ({}),
+  );
   g.setGraph({ rankdir: "TB", ranksep: 250, nodesep: 80 });
 
   nodes.forEach((node) =>
     g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT }),
   );
-  edges.forEach((edge) => g.setEdge(edge.source, edge.target));
+  edges.forEach((edge) => g.setEdge(edge.source, edge.target, {}, edge.id));
   dagre.layout(g);
 
   const layoutedNodes = nodes.map((node) => {
