@@ -5,16 +5,16 @@ import type { Zone, ZonePair } from "../api/types";
 
 // Mock MatrixCell to simplify testing
 vi.mock("./MatrixCell", () => ({
-  default: ({ allowCount, blockCount, totalRules, onClick, isSelfPair }: {
-    allowCount: number;
-    blockCount: number;
+  default: ({ totalRules, grade, onClick, isSelfPair }: {
     totalRules: number;
+    grade: string | null;
     onClick: () => void;
     isSelfPair?: boolean;
   }) => (
     <button
-      data-testid={`cell-${allowCount}-${blockCount}-${totalRules}`}
+      data-testid={`cell-${totalRules}`}
       data-self-pair={isSelfPair ? "true" : "false"}
+      data-grade={grade ?? ""}
       onClick={onClick}
     >
       {totalRules}
@@ -40,6 +40,7 @@ const zonePairs: ZonePair[] = [
     ],
     allow_count: 1,
     block_count: 0,
+    analysis: { score: 85, grade: "B", findings: [] },
   },
 ];
 
@@ -71,7 +72,7 @@ describe("ZoneMatrix", () => {
     render(
       <ZoneMatrix zones={zones} zonePairs={zonePairs} onCellClick={onCellClick} onZoneClick={onZoneClick} />,
     );
-    fireEvent.click(screen.getByTestId("cell-1-0-1"));
+    fireEvent.click(screen.getByTestId("cell-1"));
     expect(onCellClick).toHaveBeenCalledWith(zonePairs[0]);
   });
 
@@ -95,7 +96,7 @@ describe("ZoneMatrix", () => {
     const selfPairs: ZonePair[] = [
       {
         source_zone_id: "z1", destination_zone_id: "z1",
-        rules: [], allow_count: 0, block_count: 0,
+        rules: [], allow_count: 0, block_count: 0, analysis: null,
       },
     ];
     render(

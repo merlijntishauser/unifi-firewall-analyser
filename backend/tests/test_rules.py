@@ -107,6 +107,10 @@ async def test_zone_pairs_returns_list(client: AsyncClient) -> None:
         assert "allow_count" in pair
         assert "block_count" in pair
         assert isinstance(pair["rules"], list)
+        assert "analysis" in pair
+        assert "score" in pair["analysis"]
+        assert "grade" in pair["analysis"]
+        assert "findings" in pair["analysis"]
 
 
 @pytest.mark.anyio

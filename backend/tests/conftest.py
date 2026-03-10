@@ -174,10 +174,15 @@ MOCK_RAW_NETWORKS = [
 
 
 @pytest.fixture(autouse=True)
-def _clean_runtime_credentials() -> Iterator[None]:
-    """Ensure runtime credentials are cleared before and after each test."""
+def _clean_credentials() -> Iterator[None]:
+    """Ensure all credentials (runtime and env-based) are cleared for each test."""
     clear_runtime_credentials()
-    yield
+    with (
+        patch("app.config.settings.unifi_url", ""),
+        patch("app.config.settings.unifi_user", ""),
+        patch("app.config.settings.unifi_pass", ""),
+    ):
+        yield
     clear_runtime_credentials()
 
 

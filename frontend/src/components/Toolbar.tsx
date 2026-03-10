@@ -8,6 +8,7 @@ interface ToolbarProps {
   onRefresh: () => void;
   loading: boolean;
   onLogout: () => void;
+  onOpenSettings: () => void;
 }
 
 export default function Toolbar({
@@ -18,6 +19,7 @@ export default function Toolbar({
   onRefresh,
   loading,
   onLogout,
+  onOpenSettings,
 }: ToolbarProps) {
   return (
     <div className="flex items-center gap-3 px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
@@ -50,6 +52,13 @@ export default function Toolbar({
         className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
       >
         {loading ? "Refreshing..." : "Refresh"}
+      </button>
+
+      <button
+        onClick={onOpenSettings}
+        className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+      >
+        Settings
       </button>
 
       <button

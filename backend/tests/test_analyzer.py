@@ -1,7 +1,5 @@
 """Tests for static firewall rule analyzer."""
 
-import pytest
-
 from app.models import Rule
 from app.services.analyzer import Finding, analyze_zone_pair, compute_grade
 
@@ -161,3 +159,27 @@ class TestAnalyzeZonePair:
     def test_finding_has_source_static(self) -> None:
         result = analyze_zone_pair([], "LAN", "WAN")
         assert all(f.source == "static" for f in result.findings)
+
+    def test_malformed_port_range(self) -> None:
+        """Malformed port range like 'abc-def' should not crash."""
+        rules = [_rule(protocol="tcp", port_ranges=["abc-def"])]
+        result = analyze_zone_pair(rules, "LAN", "WAN")
+        assert not any(f.id == "wide-port-range" for f in result.findings)
+
+    def test_no_shadow_when_different_port_ranges(self) -> None:
+        """Rules with same action/protocol but different port ranges are not shadowed."""
+        rules = [
+            _rule(id="r1", action="ALLOW", protocol="tcp", port_ranges=["80"], index=100),
+            _rule(id="r2", action="ALLOW", protocol="tcp", port_ranges=["443"], index=200),
+        ]
+        result = analyze_zone_pair(rules, "LAN", "WAN")
+        assert not any(f.id == "shadowed-rule" for f in result.findings)
+
+    def test_no_shadow_when_earlier_has_ip_ranges(self) -> None:
+        """Earlier rule with ip_ranges does not shadow a later rule."""
+        rules = [
+            _rule(id="r1", action="ALLOW", protocol="all", port_ranges=[], ip_ranges=["10.0.0.0/8"], index=100),
+            _rule(id="r2", action="ALLOW", protocol="tcp", port_ranges=["80"], index=200),
+        ]
+        result = analyze_zone_pair(rules, "LAN", "WAN")
+        assert not any(f.id == "shadowed-rule" for f in result.findings)

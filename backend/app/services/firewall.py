@@ -21,7 +21,8 @@ from unifi_topology import (
 )
 
 from app.config import UnifiCredentials
-from app.models import Network, Rule, Zone, ZonePair
+from app.models import FindingModel, Network, Rule, Zone, ZonePair, ZonePairAnalysis
+from app.services.analyzer import analyze_zone_pair as run_analysis
 
 logger = logging.getLogger(__name__)
 
@@ -118,13 +119,30 @@ def get_zone_pairs(credentials: UnifiCredentials) -> list[ZonePair]:
         key = (rule.source_zone_id, rule.destination_zone_id)
         pairs.setdefault(key, []).append(rule)
 
-    return [
-        ZonePair(
-            source_zone_id=src,
-            destination_zone_id=dst,
-            rules=sorted(pair_rules, key=lambda r: r.index),
-            allow_count=sum(1 for r in pair_rules if r.action == "ALLOW" and r.enabled),
-            block_count=sum(1 for r in pair_rules if r.action in ("BLOCK", "REJECT") and r.enabled),
+    zones = get_zones(credentials)
+    zone_name_lookup: dict[str, str] = {z.id: z.name for z in zones}
+
+    result: list[ZonePair] = []
+    for (src, dst), pair_rules in pairs.items():
+        sorted_rules = sorted(pair_rules, key=lambda r: r.index)
+        analysis_result = run_analysis(
+            sorted_rules,
+            zone_name_lookup.get(src, src),
+            zone_name_lookup.get(dst, dst),
         )
-        for (src, dst), pair_rules in pairs.items()
-    ]
+        analysis = ZonePairAnalysis(
+            score=analysis_result.score,
+            grade=analysis_result.grade,
+            findings=[FindingModel(**vars(f)) for f in analysis_result.findings],
+        )
+        result.append(
+            ZonePair(
+                source_zone_id=src,
+                destination_zone_id=dst,
+                rules=sorted_rules,
+                allow_count=sum(1 for r in pair_rules if r.action == "ALLOW" and r.enabled),
+                block_count=sum(1 for r in pair_rules if r.action in ("BLOCK", "REJECT") and r.enabled),
+                analysis=analysis,
+            )
+        )
+    return result

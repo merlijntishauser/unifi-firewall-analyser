@@ -11,6 +11,7 @@ describe("Toolbar", () => {
     onRefresh: vi.fn(),
     loading: false,
     onLogout: vi.fn(),
+    onOpenSettings: vi.fn(),
   };
 
   function renderToolbar(overrides = {}) {
@@ -98,6 +99,18 @@ describe("Toolbar", () => {
     const handler = vi.fn();
     renderToolbar({ onLogout: handler });
     fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders Settings button", () => {
+    renderToolbar();
+    expect(screen.getByRole("button", { name: "Settings" })).toBeInTheDocument();
+  });
+
+  it("calls onOpenSettings when Settings is clicked", () => {
+    const handler = vi.fn();
+    renderToolbar({ onOpenSettings: handler });
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     expect(handler).toHaveBeenCalledTimes(1);
   });
 });

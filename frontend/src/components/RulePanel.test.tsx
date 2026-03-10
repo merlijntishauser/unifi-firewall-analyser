@@ -1,17 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import RulePanel from "./RulePanel";
-import type { ZonePair, Rule, SimulateResponse } from "../api/types";
+import type { ZonePair, Rule, SimulateResponse, ZonePairAnalysis } from "../api/types";
 
 vi.mock("../api/client", () => ({
   api: {
     simulate: vi.fn(),
+    analyzeWithAi: vi.fn(),
   },
 }));
 
 import { api } from "../api/client";
 
 const mockSimulate = vi.mocked(api.simulate);
+const mockAnalyzeWithAi = vi.mocked(api.analyzeWithAi);
 
 function makeRule(overrides: Partial<Rule> = {}): Rule {
   return {
@@ -31,13 +33,14 @@ function makeRule(overrides: Partial<Rule> = {}): Rule {
   };
 }
 
-function makePair(rules: Rule[] = [makeRule()]): ZonePair {
+function makePair(rules: Rule[] = [makeRule()], analysis: ZonePairAnalysis | null = null): ZonePair {
   return {
     source_zone_id: "z1",
     destination_zone_id: "z2",
     rules,
     allow_count: rules.filter((r) => r.action === "ALLOW").length,
     block_count: rules.filter((r) => r.action !== "ALLOW").length,
+    analysis,
   };
 }
 
@@ -48,12 +51,13 @@ describe("RulePanel", () => {
     vi.clearAllMocks();
   });
 
-  function renderPanel(pair?: ZonePair, sourceZoneName = "External", destZoneName = "Internal") {
+  function renderPanel(pair?: ZonePair, sourceZoneName = "External", destZoneName = "Internal", aiConfigured = false) {
     return render(
       <RulePanel
         pair={pair ?? makePair()}
         sourceZoneName={sourceZoneName}
         destZoneName={destZoneName}
+        aiConfigured={aiConfigured}
         onClose={onClose}
       />,
     );
@@ -563,6 +567,182 @@ describe("RulePanel", () => {
         const ruleTwo = screen.getByText("2. Rule Two").closest("div[class*='rounded']");
         expect(ruleTwo?.className).toContain("ring-2");
         expect(ruleTwo?.className).toContain("ring-blue-500");
+      });
+    });
+  });
+
+  describe("analysis section", () => {
+    it("shows score badge when analysis exists", () => {
+      const pair = makePair([makeRule()], { score: 82, grade: "B", findings: [] });
+      renderPanel(pair);
+      expect(screen.getByText("B")).toBeInTheDocument();
+      expect(screen.getByText("82/100")).toBeInTheDocument();
+    });
+
+    it("shows findings list", () => {
+      const pair = makePair([makeRule()], {
+        score: 60,
+        grade: "C",
+        findings: [
+          { id: "f1", severity: "high", title: "Open port", description: "Port 22 is exposed", rule_id: null, source: "static" },
+          { id: "f2", severity: "low", title: "Minor issue", description: "Consider restricting", rule_id: null, source: "static" },
+        ],
+      });
+      renderPanel(pair);
+      expect(screen.getByText("Findings (2)")).toBeInTheDocument();
+      expect(screen.getByText("Open port")).toBeInTheDocument();
+      expect(screen.getByText("Port 22 is exposed")).toBeInTheDocument();
+      expect(screen.getByText("Minor issue")).toBeInTheDocument();
+      expect(screen.getByText("Consider restricting")).toBeInTheDocument();
+    });
+
+    it("shows severity badges with correct colors", () => {
+      const pair = makePair([makeRule()], {
+        score: 50,
+        grade: "D",
+        findings: [
+          { id: "f1", severity: "high", title: "High issue", description: "desc", rule_id: null, source: "static" },
+          { id: "f2", severity: "medium", title: "Medium issue", description: "desc", rule_id: null, source: "static" },
+          { id: "f3", severity: "low", title: "Low issue", description: "desc", rule_id: null, source: "static" },
+        ],
+      });
+      renderPanel(pair);
+
+      const highBadge = screen.getByText("high");
+      expect(highBadge.className).toContain("bg-red-100");
+
+      const mediumBadge = screen.getByText("medium");
+      expect(mediumBadge.className).toContain("bg-amber-100");
+
+      const lowBadge = screen.getByText("low");
+      expect(lowBadge.className).toContain("bg-blue-100");
+    });
+
+    it("shows gray badge for unknown severity", () => {
+      const pair = makePair([makeRule()], {
+        score: 50,
+        grade: "D",
+        findings: [
+          { id: "f1", severity: "unknown" as "high", title: "Unknown issue", description: "desc", rule_id: null, source: "static" },
+        ],
+      });
+      renderPanel(pair);
+
+      const badge = screen.getByText("unknown");
+      expect(badge.className).toContain("bg-gray-100");
+    });
+
+    it("does not show analysis section when analysis is null", () => {
+      const pair = makePair([makeRule()], null);
+      renderPanel(pair);
+      expect(screen.queryByText(/\/100/)).not.toBeInTheDocument();
+    });
+
+    it("shows green badge for A grade", () => {
+      const pair = makePair([makeRule()], { score: 95, grade: "A", findings: [] });
+      renderPanel(pair);
+      const gradeBadge = screen.getByText("A");
+      expect(gradeBadge.className).toContain("bg-green-600");
+    });
+
+    it("shows red badge for F grade", () => {
+      const pair = makePair([makeRule()], { score: 20, grade: "F", findings: [] });
+      renderPanel(pair);
+      const gradeBadge = screen.getByText("F");
+      expect(gradeBadge.className).toContain("bg-red-600");
+    });
+  });
+
+  describe("AI analysis", () => {
+    const analysisWithFindings: ZonePairAnalysis = {
+      score: 60,
+      grade: "C",
+      findings: [
+        { id: "f1", severity: "high", title: "Static finding", description: "A static finding", rule_id: null, source: "static" },
+      ],
+    };
+
+    it("does not show AI button when aiConfigured is false", () => {
+      const pair = makePair([makeRule()], analysisWithFindings);
+      renderPanel(pair, "External", "Internal", false);
+      expect(screen.queryByRole("button", { name: "Analyze with AI" })).not.toBeInTheDocument();
+    });
+
+    it("shows AI button when aiConfigured is true", () => {
+      const pair = makePair([makeRule()], analysisWithFindings);
+      renderPanel(pair, "External", "Internal", true);
+      expect(screen.getByRole("button", { name: "Analyze with AI" })).toBeInTheDocument();
+    });
+
+    it("shows loading state while AI analyzing", async () => {
+      let resolveAnalyze!: (value: unknown) => void;
+      mockAnalyzeWithAi.mockReturnValue(new Promise((r) => { resolveAnalyze = r; }));
+
+      const pair = makePair([makeRule()], analysisWithFindings);
+      renderPanel(pair, "External", "Internal", true);
+
+      fireEvent.click(screen.getByRole("button", { name: "Analyze with AI" }));
+
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "Analyzing..." })).toBeDisabled();
+      });
+
+      resolveAnalyze({ findings: [] });
+
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "Analyze with AI" })).toBeInTheDocument();
+      });
+    });
+
+    it("merges AI findings with static findings", async () => {
+      mockAnalyzeWithAi.mockResolvedValue({
+        findings: [
+          { id: "ai1", severity: "medium", title: "AI finding", description: "Found by AI", rule_id: null, source: "ai" as const },
+        ],
+      });
+
+      const pair = makePair([makeRule()], analysisWithFindings);
+      renderPanel(pair, "External", "Internal", true);
+
+      fireEvent.click(screen.getByRole("button", { name: "Analyze with AI" }));
+
+      await waitFor(() => {
+        expect(screen.getByText("AI finding")).toBeInTheDocument();
+      });
+      expect(screen.getByText("Static finding")).toBeInTheDocument();
+      expect(screen.getByText("Found by AI")).toBeInTheDocument();
+      expect(screen.getByText("Findings (2)")).toBeInTheDocument();
+    });
+
+    it("shows AI badge on AI-sourced findings", async () => {
+      mockAnalyzeWithAi.mockResolvedValue({
+        findings: [
+          { id: "ai1", severity: "low", title: "AI insight", description: "Desc", rule_id: null, source: "ai" as const },
+        ],
+      });
+
+      const pair = makePair([makeRule()], analysisWithFindings);
+      renderPanel(pair, "External", "Internal", true);
+
+      fireEvent.click(screen.getByRole("button", { name: "Analyze with AI" }));
+
+      await waitFor(() => {
+        expect(screen.getByText("AI")).toBeInTheDocument();
+      });
+      const aiBadge = screen.getByText("AI");
+      expect(aiBadge.className).toContain("bg-purple-100");
+    });
+
+    it("shows error message when AI analysis fails", async () => {
+      mockAnalyzeWithAi.mockRejectedValue(new Error("AI service unavailable"));
+
+      const pair = makePair([makeRule()], analysisWithFindings);
+      renderPanel(pair, "External", "Internal", true);
+
+      fireEvent.click(screen.getByRole("button", { name: "Analyze with AI" }));
+
+      await waitFor(() => {
+        expect(screen.getByText("AI service unavailable")).toBeInTheDocument();
       });
     });
   });
