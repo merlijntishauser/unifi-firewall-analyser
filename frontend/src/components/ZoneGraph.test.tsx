@@ -96,6 +96,7 @@ describe("ZoneGraph", () => {
       ],
       allow_count: 1,
       block_count: 0,
+      analysis: { score: 85, grade: "B", findings: [] },
     },
   ];
 
@@ -192,12 +193,12 @@ describe("ZoneGraph", () => {
       {
         source_zone_id: "z1", destination_zone_id: "z2",
         rules: [{ id: "r1", name: "R1", description: "", enabled: true, action: "ALLOW", source_zone_id: "z1", destination_zone_id: "z2", protocol: "TCP", port_ranges: [], ip_ranges: [], index: 1, predefined: false }],
-        allow_count: 1, block_count: 0,
+        allow_count: 1, block_count: 0, analysis: null,
       },
       {
         source_zone_id: "z2", destination_zone_id: "z3",
         rules: [{ id: "r2", name: "R2", description: "", enabled: true, action: "BLOCK", source_zone_id: "z2", destination_zone_id: "z3", protocol: "TCP", port_ranges: [], ip_ranges: [], index: 2, predefined: false }],
-        allow_count: 0, block_count: 1,
+        allow_count: 0, block_count: 1, analysis: null,
       },
     ];
 
@@ -219,12 +220,12 @@ describe("ZoneGraph", () => {
       {
         source_zone_id: "z1", destination_zone_id: "z2",
         rules: [{ id: "r1", name: "R1", description: "", enabled: true, action: "ALLOW", source_zone_id: "z1", destination_zone_id: "z2", protocol: "TCP", port_ranges: [], ip_ranges: [], index: 1, predefined: false }],
-        allow_count: 1, block_count: 0,
+        allow_count: 1, block_count: 0, analysis: null,
       },
       {
         source_zone_id: "z1", destination_zone_id: "z3",
         rules: [{ id: "r2", name: "R2", description: "", enabled: true, action: "BLOCK", source_zone_id: "z1", destination_zone_id: "z3", protocol: "TCP", port_ranges: [], ip_ranges: [], index: 2, predefined: false }],
-        allow_count: 0, block_count: 1,
+        allow_count: 0, block_count: 1, analysis: null,
       },
     ];
 

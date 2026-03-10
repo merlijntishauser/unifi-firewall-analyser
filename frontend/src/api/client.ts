@@ -1,4 +1,9 @@
 import type {
+  AiAnalyzeRequest,
+  AiAnalyzeResponse,
+  AiConfig,
+  AiConfigInput,
+  AiPreset,
   AuthStatus,
   Rule,
   SimulateRequest,
@@ -46,6 +51,21 @@ export const api = {
   getZonePairs: () => fetchJson<ZonePair[]>("/zone-pairs"),
   simulate: (req: SimulateRequest) =>
     fetchJson<SimulateResponse>("/simulate", {
+      method: "POST",
+      body: JSON.stringify(req),
+    }),
+  getAiConfig: () => fetchJson<AiConfig>("/settings/ai"),
+  saveAiConfig: (config: AiConfigInput) =>
+    fetchJson("/settings/ai", {
+      method: "PUT",
+      body: JSON.stringify(config),
+    }),
+  deleteAiConfig: () => fetchJson("/settings/ai", { method: "DELETE" }),
+  testAiConnection: () =>
+    fetchJson<{ status: string }>("/settings/ai/test", { method: "POST" }),
+  getAiPresets: () => fetchJson<AiPreset[]>("/settings/ai/presets"),
+  analyzeWithAi: (req: AiAnalyzeRequest) =>
+    fetchJson<AiAnalyzeResponse>("/analyze", {
       method: "POST",
       body: JSON.stringify(req),
     }),

@@ -147,4 +147,66 @@ describe("api client", () => {
       expect(JSON.parse(init.body).port).toBeNull();
     });
   });
+
+  describe("getAiConfig", () => {
+    it("fetches AI config from the correct endpoint", async () => {
+      const config = { base_url: "http://test.com", model: "gpt-4", provider_type: "openai", has_key: true, source: "db" };
+      mockFetch.mockResolvedValue(mockOkResponse(config));
+      const result = await api.getAiConfig();
+      expect(result).toEqual(config);
+      expect(mockFetch).toHaveBeenCalledWith("/api/settings/ai", expect.objectContaining({}));
+    });
+  });
+
+  describe("saveAiConfig", () => {
+    it("sends PUT with config body", async () => {
+      mockFetch.mockResolvedValue(mockOkResponse({ status: "ok" }));
+      await api.saveAiConfig({ base_url: "http://test.com", api_key: "key", model: "gpt-4", provider_type: "openai" });
+      const [url, init] = mockFetch.mock.calls[0];
+      expect(url).toBe("/api/settings/ai");
+      expect(init.method).toBe("PUT");
+      expect(JSON.parse(init.body)).toEqual({ base_url: "http://test.com", api_key: "key", model: "gpt-4", provider_type: "openai" });
+    });
+  });
+
+  describe("deleteAiConfig", () => {
+    it("sends DELETE to correct endpoint", async () => {
+      mockFetch.mockResolvedValue(mockOkResponse({ status: "ok" }));
+      await api.deleteAiConfig();
+      expect(mockFetch).toHaveBeenCalledWith("/api/settings/ai", expect.objectContaining({ method: "DELETE" }));
+    });
+  });
+
+  describe("testAiConnection", () => {
+    it("sends POST to test endpoint", async () => {
+      mockFetch.mockResolvedValue(mockOkResponse({ status: "ok" }));
+      const result = await api.testAiConnection();
+      expect(result).toEqual({ status: "ok" });
+      expect(mockFetch).toHaveBeenCalledWith("/api/settings/ai/test", expect.objectContaining({ method: "POST" }));
+    });
+  });
+
+  describe("getAiPresets", () => {
+    it("fetches presets from correct endpoint", async () => {
+      const presets = [{ id: "openai", name: "OpenAI" }];
+      mockFetch.mockResolvedValue(mockOkResponse(presets));
+      const result = await api.getAiPresets();
+      expect(result).toEqual(presets);
+      expect(mockFetch).toHaveBeenCalledWith("/api/settings/ai/presets", expect.objectContaining({}));
+    });
+  });
+
+  describe("analyzeWithAi", () => {
+    it("sends POST with analysis request", async () => {
+      const req = { source_zone_name: "LAN", destination_zone_name: "WAN", rules: [] };
+      const response = { findings: [] };
+      mockFetch.mockResolvedValue(mockOkResponse(response));
+      const result = await api.analyzeWithAi(req);
+      expect(result).toEqual(response);
+      const [url, init] = mockFetch.mock.calls[0];
+      expect(url).toBe("/api/analyze");
+      expect(init.method).toBe("POST");
+      expect(JSON.parse(init.body)).toEqual(req);
+    });
+  });
 });

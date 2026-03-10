@@ -38,6 +38,7 @@ function makePair(rules: Rule[] = [makeRule()]): ZonePair {
     rules,
     allow_count: rules.filter((r) => r.action === "ALLOW").length,
     block_count: rules.filter((r) => r.action !== "ALLOW").length,
+    analysis: null,
   };
 }
 

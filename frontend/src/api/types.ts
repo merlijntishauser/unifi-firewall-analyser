@@ -26,12 +26,62 @@ export interface Rule {
   predefined: boolean;
 }
 
+export interface Finding {
+  id: string;
+  severity: "high" | "medium" | "low";
+  title: string;
+  description: string;
+  rule_id: string | null;
+  source: "static" | "ai";
+}
+
+export interface ZonePairAnalysis {
+  score: number;
+  grade: string;
+  findings: Finding[];
+}
+
 export interface ZonePair {
   source_zone_id: string;
   destination_zone_id: string;
   rules: Rule[];
   allow_count: number;
   block_count: number;
+  analysis: ZonePairAnalysis | null;
+}
+
+export interface AiPreset {
+  id: string;
+  name: string;
+  base_url: string;
+  provider_type: string;
+  default_model: string;
+  models: string[];
+}
+
+export interface AiConfig {
+  base_url: string;
+  model: string;
+  provider_type: string;
+  has_key: boolean;
+  source: "db" | "env" | "none";
+}
+
+export interface AiConfigInput {
+  base_url: string;
+  api_key: string;
+  model: string;
+  provider_type: string;
+}
+
+export interface AiAnalyzeRequest {
+  source_zone_name: string;
+  destination_zone_name: string;
+  rules: Rule[];
+}
+
+export interface AiAnalyzeResponse {
+  findings: Finding[];
 }
 
 export interface SimulateRequest {
