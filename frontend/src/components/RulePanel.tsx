@@ -10,6 +10,25 @@ interface RulePanelProps {
   onClose: () => void;
 }
 
+function gradeColor(grade: string): string {
+  if (grade === "A" || grade === "B") return "bg-green-600";
+  if (grade === "C") return "bg-amber-500";
+  return "bg-red-600";
+}
+
+function severityBadge(severity: string): string {
+  switch (severity) {
+    case "high":
+      return "bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300";
+    case "medium":
+      return "bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300";
+    case "low":
+      return "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300";
+    default:
+      return "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300";
+  }
+}
+
 function actionColor(action: Rule["action"], enabled: boolean): string {
   if (!enabled) return "bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600";
   switch (action) {
@@ -97,6 +116,38 @@ export default function RulePanel({
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+        {/* Analysis section */}
+        {pair.analysis && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <div className={`px-2 py-1 rounded text-xs font-bold text-white ${gradeColor(pair.analysis.grade)}`}>
+                {pair.analysis.grade}
+              </div>
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {pair.analysis.score}/100
+              </span>
+            </div>
+            {pair.analysis.findings.length > 0 && (
+              <div className="space-y-1.5">
+                <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Findings ({pair.analysis.findings.length})
+                </h3>
+                {pair.analysis.findings.map((finding, idx) => (
+                  <div key={finding.id ?? idx} className="rounded border border-gray-200 dark:border-gray-700 p-2 text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${severityBadge(finding.severity)}`}>
+                        {finding.severity}
+                      </span>
+                      <span className="font-medium text-gray-900 dark:text-gray-100">{finding.title}</span>
+                    </div>
+                    <p className="mt-1 text-gray-500 dark:text-gray-400">{finding.description}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Rule list */}
         <div className="space-y-2">
           <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
