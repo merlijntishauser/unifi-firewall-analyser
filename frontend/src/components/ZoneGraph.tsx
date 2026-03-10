@@ -4,6 +4,7 @@ import {
   Background,
   Controls,
   MiniMap,
+  MarkerType,
   useNodesState,
   useEdgesState,
   type Node,
@@ -14,6 +15,7 @@ import type { Zone, ZonePair } from "../api/types";
 import { getLayoutedElements } from "../utils/layout";
 import ZoneNodeComponent, { type ZoneNodeData } from "./ZoneNode";
 import RuleEdgeComponent, { type RuleEdgeData } from "./RuleEdge";
+import { getActionColor } from "../utils/edgeColor";
 
 const nodeTypes = { zone: ZoneNodeComponent };
 const edgeTypes = { rule: RuleEdgeComponent };
@@ -68,18 +70,29 @@ function buildElements(
     },
   }));
 
-  const rawEdges: Edge<RuleEdgeData>[] = filteredPairs.map((pair) => ({
-    id: `${pair.source_zone_id}->${pair.destination_zone_id}`,
-    source: pair.source_zone_id,
-    target: pair.destination_zone_id,
-    type: "rule" as const,
-    data: {
-      allowCount: pair.allow_count,
-      blockCount: pair.block_count,
-      totalRules: pair.rules.length,
-      onLabelClick: () => onEdgeSelect(pair),
-    },
-  }));
+  const rawEdges: Edge<RuleEdgeData>[] = filteredPairs.flatMap((pair) =>
+    pair.rules.map((rule, idx) => ({
+      id: `${pair.source_zone_id}->${pair.destination_zone_id}::${rule.id}`,
+      source: pair.source_zone_id,
+      target: pair.destination_zone_id,
+      type: "rule" as const,
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        color: getActionColor(rule.action),
+      },
+      data: {
+        ruleName: rule.name,
+        ruleIndex: rule.index,
+        action: rule.action,
+        protocol: rule.protocol,
+        portRanges: rule.port_ranges,
+        enabled: rule.enabled,
+        edgeOffset: idx,
+        totalSiblings: pair.rules.length,
+        onLabelClick: () => onEdgeSelect(pair),
+      },
+    })),
+  );
 
   return getLayoutedElements(rawNodes, rawEdges);
 }

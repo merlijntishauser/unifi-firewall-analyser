@@ -74,6 +74,7 @@ vi.mock("@xyflow/react", () => ({
   useEdgesState: (initial: unknown[]) => [initial, vi.fn(), vi.fn()],
   BaseEdge: () => <div />,
   EdgeLabelRenderer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  MarkerType: { ArrowClosed: "arrowclosed" },
   getSmoothStepPath: () => ["", 0, 0],
 }));
 
@@ -405,10 +406,10 @@ describe("App", () => {
 
     // Click the edge to select a zone pair - the mock ReactFlow renders edge buttons
     await waitFor(() => {
-      expect(screen.getByTestId("edge-z1->z2")).toBeInTheDocument();
+      expect(screen.getByTestId("edge-z1->z2::r1")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByTestId("edge-z1->z2"));
+    fireEvent.click(screen.getByTestId("edge-z1->z2::r1"));
 
     // RulePanel should now be visible with the zone pair
     await waitFor(() => {
@@ -448,10 +449,10 @@ describe("App", () => {
 
     // Click the edge label button (exercises onLabelClick / buildElements callback)
     await waitFor(() => {
-      expect(screen.getByTestId("edge-label-z1->z2")).toBeInTheDocument();
+      expect(screen.getByTestId("edge-label-z1->z2::r1")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByTestId("edge-label-z1->z2"));
+    fireEvent.click(screen.getByTestId("edge-label-z1->z2::r1"));
 
     // RulePanel should be visible
     await waitFor(() => {
