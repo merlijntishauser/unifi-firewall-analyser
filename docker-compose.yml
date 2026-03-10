@@ -6,6 +6,7 @@ services:
     volumes:
       - ./backend/app:/app/app
       - ./backend/tests:/app/tests
+      - ./data:/app/data
     env_file:
       - .env
     environment:

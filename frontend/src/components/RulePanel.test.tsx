@@ -6,12 +6,14 @@ import type { ZonePair, Rule, SimulateResponse, ZonePairAnalysis } from "../api/
 vi.mock("../api/client", () => ({
   api: {
     simulate: vi.fn(),
+    analyzeWithAi: vi.fn(),
   },
 }));
 
 import { api } from "../api/client";
 
 const mockSimulate = vi.mocked(api.simulate);
+const mockAnalyzeWithAi = vi.mocked(api.analyzeWithAi);
 
 function makeRule(overrides: Partial<Rule> = {}): Rule {
   return {
@@ -49,12 +51,13 @@ describe("RulePanel", () => {
     vi.clearAllMocks();
   });
 
-  function renderPanel(pair?: ZonePair, sourceZoneName = "External", destZoneName = "Internal") {
+  function renderPanel(pair?: ZonePair, sourceZoneName = "External", destZoneName = "Internal", aiConfigured = false) {
     return render(
       <RulePanel
         pair={pair ?? makePair()}
         sourceZoneName={sourceZoneName}
         destZoneName={destZoneName}
+        aiConfigured={aiConfigured}
         onClose={onClose}
       />,
     );
@@ -633,6 +636,100 @@ describe("RulePanel", () => {
       renderPanel(pair);
       const gradeBadge = screen.getByText("F");
       expect(gradeBadge.className).toContain("bg-red-600");
+    });
+  });
+
+  describe("AI analysis", () => {
+    const analysisWithFindings: ZonePairAnalysis = {
+      score: 60,
+      grade: "C",
+      findings: [
+        { id: "f1", severity: "high", title: "Static finding", description: "A static finding", rule_id: null, source: "static" },
+      ],
+    };
+
+    it("does not show AI button when aiConfigured is false", () => {
+      const pair = makePair([makeRule()], analysisWithFindings);
+      renderPanel(pair, "External", "Internal", false);
+      expect(screen.queryByRole("button", { name: "Analyze with AI" })).not.toBeInTheDocument();
+    });
+
+    it("shows AI button when aiConfigured is true", () => {
+      const pair = makePair([makeRule()], analysisWithFindings);
+      renderPanel(pair, "External", "Internal", true);
+      expect(screen.getByRole("button", { name: "Analyze with AI" })).toBeInTheDocument();
+    });
+
+    it("shows loading state while AI analyzing", async () => {
+      let resolveAnalyze!: (value: unknown) => void;
+      mockAnalyzeWithAi.mockReturnValue(new Promise((r) => { resolveAnalyze = r; }));
+
+      const pair = makePair([makeRule()], analysisWithFindings);
+      renderPanel(pair, "External", "Internal", true);
+
+      fireEvent.click(screen.getByRole("button", { name: "Analyze with AI" }));
+
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "Analyzing..." })).toBeDisabled();
+      });
+
+      resolveAnalyze({ findings: [] });
+
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "Analyze with AI" })).toBeInTheDocument();
+      });
+    });
+
+    it("merges AI findings with static findings", async () => {
+      mockAnalyzeWithAi.mockResolvedValue({
+        findings: [
+          { id: "ai1", severity: "medium", title: "AI finding", description: "Found by AI", rule_id: null, source: "ai" as const },
+        ],
+      });
+
+      const pair = makePair([makeRule()], analysisWithFindings);
+      renderPanel(pair, "External", "Internal", true);
+
+      fireEvent.click(screen.getByRole("button", { name: "Analyze with AI" }));
+
+      await waitFor(() => {
+        expect(screen.getByText("AI finding")).toBeInTheDocument();
+      });
+      expect(screen.getByText("Static finding")).toBeInTheDocument();
+      expect(screen.getByText("Found by AI")).toBeInTheDocument();
+      expect(screen.getByText("Findings (2)")).toBeInTheDocument();
+    });
+
+    it("shows AI badge on AI-sourced findings", async () => {
+      mockAnalyzeWithAi.mockResolvedValue({
+        findings: [
+          { id: "ai1", severity: "low", title: "AI insight", description: "Desc", rule_id: null, source: "ai" as const },
+        ],
+      });
+
+      const pair = makePair([makeRule()], analysisWithFindings);
+      renderPanel(pair, "External", "Internal", true);
+
+      fireEvent.click(screen.getByRole("button", { name: "Analyze with AI" }));
+
+      await waitFor(() => {
+        expect(screen.getByText("AI")).toBeInTheDocument();
+      });
+      const aiBadge = screen.getByText("AI");
+      expect(aiBadge.className).toContain("bg-purple-100");
+    });
+
+    it("shows error message when AI analysis fails", async () => {
+      mockAnalyzeWithAi.mockRejectedValue(new Error("AI service unavailable"));
+
+      const pair = makePair([makeRule()], analysisWithFindings);
+      renderPanel(pair, "External", "Internal", true);
+
+      fireEvent.click(screen.getByRole("button", { name: "Analyze with AI" }));
+
+      await waitFor(() => {
+        expect(screen.getByText("AI service unavailable")).toBeInTheDocument();
+      });
     });
   });
 
