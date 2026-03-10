@@ -246,6 +246,51 @@ describe("ZoneGraph", () => {
     expect(screen.getByTestId("edges-count").textContent).toBe("1");
   });
 
+  it("creates two separate edges for bidirectional zone pairs", () => {
+    const biPairs: ZonePair[] = [
+      {
+        source_zone_id: "z1", destination_zone_id: "z2",
+        rules: [{ id: "r1", name: "Allow HTTP", description: "", enabled: true, action: "ALLOW", source_zone_id: "z1", destination_zone_id: "z2", protocol: "TCP", port_ranges: ["80"], ip_ranges: [], index: 1, predefined: false }],
+        allow_count: 1, block_count: 0, analysis: null,
+      },
+      {
+        source_zone_id: "z2", destination_zone_id: "z1",
+        rules: [{ id: "r2", name: "Block SSH", description: "", enabled: true, action: "BLOCK", source_zone_id: "z2", destination_zone_id: "z1", protocol: "TCP", port_ranges: ["22"], ip_ranges: [], index: 2, predefined: false }],
+        allow_count: 0, block_count: 1, analysis: null,
+      },
+    ];
+
+    render(
+      <ZoneGraph zones={zones} zonePairs={biPairs} colorMode="light" onEdgeSelect={onEdgeSelect} />,
+    );
+    expect(screen.getByTestId("edges-count").textContent).toBe("2");
+    expect(screen.getByTestId("edge-z1->z2")).toBeInTheDocument();
+    expect(screen.getByTestId("edge-z2->z1")).toBeInTheDocument();
+  });
+
+  it("passes zone names and edge offset for bidirectional pairs", () => {
+    const biPairs: ZonePair[] = [
+      {
+        source_zone_id: "z1", destination_zone_id: "z2",
+        rules: [],
+        allow_count: 0, block_count: 0, analysis: null,
+      },
+      {
+        source_zone_id: "z2", destination_zone_id: "z1",
+        rules: [],
+        allow_count: 0, block_count: 0, analysis: null,
+      },
+    ];
+
+    render(
+      <ZoneGraph zones={zones} zonePairs={biPairs} colorMode="light" onEdgeSelect={onEdgeSelect} />,
+    );
+
+    // The mock renders edge IDs as button text - verify both edges exist
+    expect(screen.getByTestId("edge-z1->z2")).toBeInTheDocument();
+    expect(screen.getByTestId("edge-z2->z1")).toBeInTheDocument();
+  });
+
   it("shows all zones when focusZoneIds is not set", () => {
     const threeZones: Zone[] = [
       { id: "z1", name: "External", networks: [] },

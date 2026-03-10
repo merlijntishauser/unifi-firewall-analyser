@@ -70,7 +70,23 @@ function buildElements(
     },
   }));
 
+  // Detect bidirectional pairs for edge offset
+  const pairKeys = new Set(
+    filteredPairs.map((p) => `${p.source_zone_id}|${p.destination_zone_id}`),
+  );
+
+  const zoneNameMap = new Map(zones.map((z) => [z.id, z.name]));
+
   const rawEdges: Edge<RuleEdgeData>[] = filteredPairs.map((pair) => {
+    const reverseKey = `${pair.destination_zone_id}|${pair.source_zone_id}`;
+    const isBidirectional = pairKeys.has(reverseKey);
+
+    let edgeOffset = 0;
+    if (isBidirectional) {
+      edgeOffset =
+        pair.source_zone_id < pair.destination_zone_id ? -1 : 1;
+    }
+
     const color = getEdgeColor(pair.allow_count, pair.block_count);
     return {
       id: `${pair.source_zone_id}->${pair.destination_zone_id}`,
@@ -93,6 +109,9 @@ function buildElements(
         })),
         allowCount: pair.allow_count,
         blockCount: pair.block_count,
+        edgeOffset,
+        sourceZoneName: zoneNameMap.get(pair.source_zone_id) ?? "",
+        destZoneName: zoneNameMap.get(pair.destination_zone_id) ?? "",
         onLabelClick: () => onEdgeSelect(pair),
       },
     };
