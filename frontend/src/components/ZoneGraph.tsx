@@ -80,6 +80,8 @@ function buildElements(
       markerEnd: {
         type: MarkerType.ArrowClosed,
         color,
+        width: 20,
+        height: 20,
       },
       data: {
         rules: pair.rules.map((r) => ({
