@@ -49,6 +49,7 @@ vi.mock("@xyflow/react", () => {
     Background: () => <div data-testid="background" />,
     Controls: () => <div data-testid="controls" />,
     MiniMap: () => <div data-testid="minimap" />,
+    MarkerType: { ArrowClosed: "arrowclosed" },
     useNodesState: (initial: unknown[]) => [initial, mockSetNodes, vi.fn()],
     useEdgesState: (initial: unknown[]) => [initial, mockSetEdges, vi.fn()],
   };
@@ -66,6 +67,10 @@ vi.mock("./ZoneNode", () => ({
 
 vi.mock("./RuleEdge", () => ({
   default: () => <div>RuleEdge</div>,
+}));
+
+vi.mock("../utils/edgeColor", () => ({
+  getActionColor: (action: string) => action === "ALLOW" ? "#00d68f" : "#ff4d5e",
 }));
 
 describe("ZoneGraph", () => {
@@ -142,7 +147,7 @@ describe("ZoneGraph", () => {
       <ZoneGraph zones={zones} zonePairs={zonePairs} colorMode="light" onEdgeSelect={onEdgeSelect} />,
     );
 
-    fireEvent.click(screen.getByTestId("edge-z1->z2"));
+    fireEvent.click(screen.getByTestId("edge-z1->z2::r1"));
     expect(onEdgeSelect).toHaveBeenCalledWith(zonePairs[0]);
   });
 
@@ -152,7 +157,7 @@ describe("ZoneGraph", () => {
     );
 
     // Click the edge label button which triggers onLabelClick from buildElements
-    fireEvent.click(screen.getByTestId("edge-label-z1->z2"));
+    fireEvent.click(screen.getByTestId("edge-label-z1->z2::r1"));
     expect(onEdgeSelect).toHaveBeenCalledWith(zonePairs[0]);
   });
 
