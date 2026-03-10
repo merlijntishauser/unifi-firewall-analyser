@@ -29,7 +29,7 @@ export interface RuleEdgeData {
 
 export type RuleEdge = Edge<RuleEdgeData, "rule">;
 
-const MAX_VISIBLE = 4;
+const MAX_VISIBLE = 3;
 
 const DATA_DEFAULTS: Omit<RuleEdgeData, "onLabelClick"> = {
   rules: [],
@@ -45,6 +45,11 @@ function resolveData(data: RuleEdgeData | undefined): RuleEdgeData {
 function formatPortLabel(protocol: string, portRanges: string[]): string | null {
   if (portRanges.length > 0) return `${protocol}:${portRanges.join(",")}`;
   return protocol || null;
+}
+
+/** Point on a quadratic bezier at parameter t (0..1). */
+function bezierAt(t: number, p0: number, p1: number, p2: number): number {
+  return (1 - t) ** 2 * p0 + 2 * (1 - t) * t * p1 + t ** 2 * p2;
 }
 
 export default function RuleEdgeComponent({
@@ -71,7 +76,6 @@ export default function RuleEdgeComponent({
   const color = getEdgeColor(allowCount, blockCount);
 
   const isUpward = sourceY > targetY;
-  const CURVE_STRENGTH = 80;
 
   let computedPath: string;
   let labelPosX: number;
@@ -83,13 +87,18 @@ export default function RuleEdgeComponent({
     const NODE_H = 100;
     const sy = isUpward ? sourceY - NODE_H : sourceY;
     const ty = isUpward ? targetY + NODE_H : targetY;
+    // Scale curve strength with vertical distance to avoid oversized arcs
+    const verticalDist = Math.abs(sy - ty);
+    const curveStrength = Math.max(25, Math.min(60, verticalDist * 0.25));
     // Curved bezier for bidirectional edges: one bows left, the other right
-    const cx = (sourceX + targetX) / 2 + edgeOffset * CURVE_STRENGTH;
+    const cx = (sourceX + targetX) / 2 + edgeOffset * curveStrength;
     const cy = (sy + ty) / 2;
     computedPath = `M ${sourceX},${sy} Q ${cx},${cy} ${targetX},${ty}`;
-    // Label at the apex of the curve (midpoint)
-    labelPosX = (sourceX + targetX) / 2 + (edgeOffset * CURVE_STRENGTH) / 2;
-    labelPosY = (sy + ty) / 2;
+    // Position label near the lower node to spread labels across the graph
+    // instead of clustering them all at the midpoint of a hub node.
+    const labelT = isUpward ? 0.3 : 0.7;
+    labelPosX = bezierAt(labelT, sourceX, cx, targetX);
+    labelPosY = bezierAt(labelT, sy, cy, ty);
   } else {
     // Standard step path for unidirectional edges
     [computedPath] = getSmoothStepPath({
@@ -134,7 +143,7 @@ export default function RuleEdgeComponent({
             e.stopPropagation();
             onLabelClick?.();
           }}
-          className="nopan nodrag rounded px-1.5 py-1 cursor-pointer max-w-[200px] bg-white/90 dark:bg-noc-bg/90 backdrop-blur-sm border border-gray-200/50 dark:border-noc-border/30 shadow-sm hover:shadow-md transition-shadow"
+          className="nopan nodrag rounded px-1 py-0.5 cursor-pointer max-w-[170px] bg-white/90 dark:bg-noc-bg/90 backdrop-blur-sm border border-gray-200/50 dark:border-noc-border/30 shadow-sm hover:shadow-md transition-shadow"
           style={{
             position: "absolute",
             transform: `${labelAnchor} translate(${labelPosX}px,${labelPosY}px)`,

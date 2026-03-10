@@ -227,8 +227,8 @@ describe("RuleEdgeComponent", () => {
   });
 
   describe("overflow indicator", () => {
-    it("shows overflow count when more than 4 rules", () => {
-      const rules: RuleSummary[] = Array.from({ length: 6 }, (_, i) => ({
+    it("shows overflow count when more than 3 rules", () => {
+      const rules: RuleSummary[] = Array.from({ length: 5 }, (_, i) => ({
         name: `Rule ${i + 1}`,
         action: "ALLOW",
         protocol: "TCP",
@@ -238,18 +238,18 @@ describe("RuleEdgeComponent", () => {
       render(
         <RuleEdgeComponent
           {...makeEdgeProps({
-            data: { rules, allowCount: 6, blockCount: 0 },
+            data: { rules, allowCount: 5, blockCount: 0 },
           })}
         />,
       );
       expect(screen.getByText("+2 more")).toBeInTheDocument();
       expect(screen.getByText("Rule 1")).toBeInTheDocument();
-      expect(screen.getByText("Rule 4")).toBeInTheDocument();
-      expect(screen.queryByText("Rule 5")).not.toBeInTheDocument();
+      expect(screen.getByText("Rule 3")).toBeInTheDocument();
+      expect(screen.queryByText("Rule 4")).not.toBeInTheDocument();
     });
 
-    it("does not show overflow when 4 or fewer rules", () => {
-      const rules: RuleSummary[] = Array.from({ length: 4 }, (_, i) => ({
+    it("does not show overflow when 3 or fewer rules", () => {
+      const rules: RuleSummary[] = Array.from({ length: 3 }, (_, i) => ({
         name: `Rule ${i + 1}`,
         action: "ALLOW",
         protocol: "TCP",
@@ -259,7 +259,7 @@ describe("RuleEdgeComponent", () => {
       render(
         <RuleEdgeComponent
           {...makeEdgeProps({
-            data: { rules, allowCount: 4, blockCount: 0 },
+            data: { rules, allowCount: 3, blockCount: 0 },
           })}
         />,
       );

@@ -11,7 +11,7 @@ export function getLayoutedElements(
   const g = new dagre.graphlib.Graph({ multigraph: true }).setDefaultEdgeLabel(
     () => ({}),
   );
-  g.setGraph({ rankdir: "TB", ranksep: 250, nodesep: 80 });
+  g.setGraph({ rankdir: "TB", ranksep: 300, nodesep: 100 });
 
   nodes.forEach((node) =>
     g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT }),
