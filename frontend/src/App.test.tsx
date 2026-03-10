@@ -12,6 +12,12 @@ vi.mock("./api/client", () => ({
     getZones: vi.fn(),
     getZonePairs: vi.fn(),
     simulate: vi.fn(),
+    getAiConfig: vi.fn(),
+    saveAiConfig: vi.fn(),
+    deleteAiConfig: vi.fn(),
+    testAiConnection: vi.fn(),
+    getAiPresets: vi.fn(),
+    analyzeWithAi: vi.fn(),
   },
 }));
 
