@@ -133,17 +133,7 @@ def get_zone_pairs(credentials: UnifiCredentials) -> list[ZonePair]:
         analysis = ZonePairAnalysis(
             score=analysis_result.score,
             grade=analysis_result.grade,
-            findings=[
-                FindingModel(
-                    id=f.id,
-                    severity=f.severity,
-                    title=f.title,
-                    description=f.description,
-                    rule_id=f.rule_id,
-                    source=f.source,
-                )
-                for f in analysis_result.findings
-            ],
+            findings=[FindingModel(**vars(f)) for f in analysis_result.findings],
         )
         result.append(
             ZonePair(
