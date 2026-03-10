@@ -52,10 +52,6 @@ def _is_internal(zone_name: str) -> bool:
     return zone_name.lower() in _INTERNAL_NAMES
 
 
-def _has_port_restriction(rule: Rule) -> bool:
-    return len(rule.port_ranges) > 0 and rule.protocol.lower() != "all"
-
-
 def _port_range_width(port_range: str) -> int:
     if "-" in port_range:
         parts = port_range.split("-", 1)

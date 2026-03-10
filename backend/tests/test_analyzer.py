@@ -1,7 +1,5 @@
 """Tests for static firewall rule analyzer."""
 
-import pytest
-
 from app.models import Rule
 from app.services.analyzer import Finding, analyze_zone_pair, compute_grade
 
