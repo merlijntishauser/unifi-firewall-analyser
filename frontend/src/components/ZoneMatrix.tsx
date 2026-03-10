@@ -61,9 +61,8 @@ export default function ZoneMatrix({ zones, zonePairs, onCellClick, onZoneClick 
               return (
                 <MatrixCell
                   key={`${srcZone.id}-${dstZone.id}`}
-                  allowCount={pair?.allow_count ?? 0}
-                  blockCount={pair?.block_count ?? 0}
                   totalRules={pair?.rules.length ?? 0}
+                  grade={pair?.analysis?.grade ?? null}
                   onClick={() => {
                     if (pair) {
                       onCellClick(pair);

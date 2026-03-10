@@ -27,6 +27,7 @@ describe("useFirewallData", () => {
       rules: [],
       allow_count: 1,
       block_count: 0,
+      analysis: null,
     },
   ];
 

@@ -129,6 +129,7 @@ const testZonePairs: ZonePair[] = [
     ],
     allow_count: 1,
     block_count: 0,
+    analysis: { score: 85, grade: "B", findings: [] },
   },
 ];
 
@@ -320,6 +321,7 @@ describe("App", () => {
         ],
         allow_count: 1,
         block_count: 1,
+        analysis: { score: 70, grade: "C", findings: [] },
       },
     ]);
 
@@ -466,6 +468,7 @@ describe("App", () => {
         ],
         allow_count: 1,
         block_count: 0,
+        analysis: { score: 85, grade: "B", findings: [] },
       },
     ]);
 
