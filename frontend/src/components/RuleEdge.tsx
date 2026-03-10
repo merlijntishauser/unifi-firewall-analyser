@@ -57,7 +57,7 @@ export default function RuleEdgeComponent({
   const { rules, allowCount, blockCount, onLabelClick } = resolveData(data);
   const color = getEdgeColor(allowCount, blockCount);
 
-  const [edgePath, labelX, labelY] = getSmoothStepPath({
+  const [edgePath] = getSmoothStepPath({
     sourceX,
     sourceY,
     sourcePosition,
@@ -65,6 +65,13 @@ export default function RuleEdgeComponent({
     targetY,
     targetPosition,
   });
+
+  // Position label near source (not midpoint) to avoid overlapping intermediate nodes
+  const LABEL_OFFSET = 60;
+  const dy = targetY - sourceY;
+  const clampedOffset = Math.sign(dy) * Math.min(LABEL_OFFSET, Math.abs(dy) * 0.4);
+  const labelPosX = (sourceX + targetX) / 2;
+  const labelPosY = sourceY + clampedOffset;
 
   const visibleRules = rules.slice(0, MAX_VISIBLE);
   const overflow = Math.max(0, rules.length - MAX_VISIBLE);
@@ -85,12 +92,11 @@ export default function RuleEdgeComponent({
             e.stopPropagation();
             onLabelClick?.();
           }}
-          className="nopan nodrag rounded-lg border border-l-[3px] px-2 py-1.5 cursor-pointer min-w-[120px] max-w-[240px] bg-white dark:bg-noc-raised border-gray-200 dark:border-noc-border shadow-sm dark:shadow-lg hover:shadow-md dark:hover:shadow-xl transition-shadow"
+          className="nopan nodrag rounded px-1.5 py-1 cursor-pointer max-w-[200px] bg-white/90 dark:bg-noc-bg/90 backdrop-blur-sm border border-gray-200/50 dark:border-noc-border/30 shadow-sm hover:shadow-md transition-shadow"
           style={{
             position: "absolute",
-            transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+            transform: `translate(12px, -50%) translate(${labelPosX}px,${labelPosY}px)`,
             pointerEvents: "all",
-            borderLeftColor: color,
           }}
         >
           {visibleRules.map((rule, i) => {
@@ -104,11 +110,11 @@ export default function RuleEdgeComponent({
                   className="w-1.5 h-1.5 rounded-full shrink-0"
                   style={{ background: getActionColor(rule.action) }}
                 />
-                <span className="text-[11px] font-medium text-gray-700 dark:text-noc-text truncate flex-1 text-left">
+                <span className="text-[10px] font-medium text-gray-600 dark:text-noc-text-secondary truncate flex-1 text-left">
                   {rule.name}
                 </span>
                 {portLabel && (
-                  <span className="text-[9px] font-mono text-gray-500 dark:text-noc-text-secondary bg-gray-100 dark:bg-noc-input px-1 rounded shrink-0">
+                  <span className="text-[8px] font-mono text-gray-400 dark:text-noc-text-dim shrink-0">
                     {portLabel}
                   </span>
                 )}
