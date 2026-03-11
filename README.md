@@ -1,68 +1,70 @@
 # UniFi Firewall Analyser
 
-Web tool that visualises UniFi Network 9.x+ zone-based firewall rules as an interactive node graph.
+Visualise your UniFi Network 9.x+ zone-based firewall rules as an interactive graph. Connect to your controller, see every zone as a node and every rule as an edge, then simulate traffic to understand which rule matches.
 
-Connect to a UniFi controller, see every zone as a node and every rule as an edge, then simulate traffic to understand which rule would match.
+## What it does
 
-## Features
-
-- **Zone graph** -- interactive node graph powered by React Flow, with automatic dagre layout
-- **Rule inspector** -- click an edge to see all rules between two zones in a side panel
+- **Zone matrix** -- overview of all zone-to-zone rule relationships at a glance
+- **Interactive graph** -- click a cell to explore zones and rules as a node graph with automatic layout
+- **Rule inspector** -- click an edge to see every rule between two zones in a side panel
 - **Traffic simulator** -- enter source/destination IP, protocol and port to see which rule would match
+- **AI analysis** -- optional rule grading and risk assessment via OpenAI or Anthropic API
 - **Dark mode** -- toggle between light and dark themes
-- **Credential options** -- connect via environment variables or at runtime through the UI
 
-## Tech stack
+## Getting started
 
-| Layer    | Technology                                 |
-|----------|--------------------------------------------|
-| Frontend | React, TypeScript, Tailwind CSS, React Flow |
-| Backend  | Python 3.13, FastAPI, Pydantic              |
-| Data     | [unifi-topology](https://github.com/merlijntishauser/unifi-topology) library |
-| Infra    | Docker Compose, Vite                        |
+### Prerequisites
 
-## Quick start
+- [Docker](https://docs.docker.com/get-docker/) and Docker Compose
+- A UniFi Network controller running 9.x or later
 
-### Docker Compose
+### 1. Clone and configure
 
 ```bash
-cp .env.example .env        # edit with your controller details
+git clone https://github.com/merlijntishauser/unifi-firewall-analyser.git
+cd unifi-firewall-analyser
+cp .env.example .env
+```
+
+Edit `.env` with your controller details:
+
+```env
+UNIFI_URL=https://192.168.1.1     # your controller address
+UNIFI_SITE=default                 # site name (usually "default")
+UNIFI_USER=admin                   # controller username
+UNIFI_PASS=yourpassword            # controller password
+UNIFI_VERIFY_SSL=false             # set to true if you have a valid cert
+```
+
+All variables are optional -- you can also enter credentials at runtime through the UI.
+
+### 2. Build and run
+
+```bash
 make build
-make up                      # api on :8001, frontend on :5174
+make up
 ```
 
-### Local development
+Open [http://localhost:5174](http://localhost:5174) in your browser.
+
+### 3. Stop
 
 ```bash
-make backend-install         # uv sync in backend/
-make frontend-install        # npm install in frontend/
+make down
 ```
 
-## Environment variables
+## Configuration
 
-| Variable           | Description                  | Default   |
-|--------------------|------------------------------|-----------|
-| `UNIFI_URL`        | Controller URL               | --        |
-| `UNIFI_SITE`       | Site name                    | `default` |
-| `UNIFI_USER`       | Controller username          | --        |
-| `UNIFI_PASS`       | Controller password          | --        |
-| `UNIFI_VERIFY_SSL` | Verify SSL certificates      | `false`   |
+| Variable           | Description             | Default   |
+|--------------------|-------------------------|-----------|
+| `UNIFI_URL`        | Controller URL          | --        |
+| `UNIFI_SITE`       | Site name               | `default` |
+| `UNIFI_USER`       | Controller username     | --        |
+| `UNIFI_PASS`       | Controller password     | --        |
+| `UNIFI_VERIFY_SSL` | Verify SSL certificates | `false`   |
 
-All variables are optional when using runtime credentials via the UI.
-
-## Quality
-
-```bash
-make ci       # run all checks locally (ruff, mypy, pytest, tsc, eslint, vitest, complexity)
-make help     # list all available targets
-```
-
-Enforced thresholds:
-- Python test coverage: 98%
-- TypeScript test coverage: 95%
-- Cyclomatic complexity: max 15
-- Maintainability index: grade A
+AI analysis is optional. You can configure an OpenAI or Anthropic API key in the Settings modal within the app.
 
 ## License
 
-MIT
+[MIT](LICENSE)
