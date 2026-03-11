@@ -175,6 +175,36 @@ class TestAnalyzeZonePair:
         result = analyze_zone_pair(rules, "LAN", "WAN")
         assert not any(f.id == "shadowed-rule" for f in result.findings)
 
+    def test_return_traffic_rule_not_flagged_as_allow_all_external(self) -> None:
+        rules = [_rule(name="Allow Return Traffic", protocol="all")]
+        result = analyze_zone_pair(rules, "External", "LAN")
+        assert not any(f.id == "allow-all-external" for f in result.findings)
+
+    def test_return_traffic_rule_not_flagged_as_allow_all_protocols(self) -> None:
+        rules = [_rule(name="Allow Return Traffic", protocol="all")]
+        result = analyze_zone_pair(rules, "LAN", "WAN")
+        assert not any(f.id == "allow-all-protocols-ports" for f in result.findings)
+
+    def test_return_traffic_rule_not_flagged_as_external_to_internal(self) -> None:
+        rules = [_rule(name="Allow Return Traffic", protocol="tcp", port_ranges=["80"])]
+        result = analyze_zone_pair(rules, "External", "Internal")
+        assert not any(f.id == "allow-external-to-internal" for f in result.findings)
+
+    def test_established_keyword_detected(self) -> None:
+        rules = [_rule(name="Allow Established", protocol="all")]
+        result = analyze_zone_pair(rules, "External", "LAN")
+        assert not any(f.id == "allow-all-external" for f in result.findings)
+
+    def test_related_keyword_detected(self) -> None:
+        rules = [_rule(name="Allow Related Sessions", protocol="all")]
+        result = analyze_zone_pair(rules, "External", "LAN")
+        assert not any(f.id == "allow-all-external" for f in result.findings)
+
+    def test_non_return_traffic_still_flagged(self) -> None:
+        rules = [_rule(name="Allow All Traffic", protocol="all")]
+        result = analyze_zone_pair(rules, "External", "LAN")
+        assert any(f.id == "allow-all-external" for f in result.findings)
+
     def test_no_shadow_when_earlier_has_ip_ranges(self) -> None:
         """Earlier rule with ip_ranges does not shadow a later rule."""
         rules = [

@@ -13,6 +13,7 @@ DEDUCTIONS = {"high": 15, "medium": 8, "low": 2}
 
 _EXTERNAL_NAMES = {"external", "wan", "internet"}
 _INTERNAL_NAMES = {"internal", "lan", "default"}
+_RETURN_TRAFFIC_KEYWORDS = {"return", "established", "related", "state"}
 
 
 @dataclass
@@ -52,6 +53,12 @@ def _is_internal(zone_name: str) -> bool:
     return zone_name.lower() in _INTERNAL_NAMES
 
 
+def _is_return_traffic(rule: Rule) -> bool:
+    """Detect stateful firewall return/established traffic rules."""
+    name_lower = rule.name.lower()
+    return any(kw in name_lower for kw in _RETURN_TRAFFIC_KEYWORDS)
+
+
 def _port_range_width(port_range: str) -> int:
     if "-" in port_range:
         parts = port_range.split("-", 1)
@@ -69,6 +76,7 @@ def _check_allow_all_external(rule: Rule, src_name: str) -> Finding | None:
         and _is_external(src_name)
         and rule.protocol.lower() == "all"
         and not rule.port_ranges
+        and not _is_return_traffic(rule)
     ):
         return Finding(
             id="allow-all-external",
@@ -86,6 +94,7 @@ def _check_allow_all_protocols_ports(rule: Rule) -> Finding | None:
         and rule.action == "ALLOW"
         and rule.protocol.lower() == "all"
         and not rule.port_ranges
+        and not _is_return_traffic(rule)
     ):
         return Finding(
             id="allow-all-protocols-ports",
@@ -106,6 +115,7 @@ def _check_allow_external_to_internal(
         and _is_external(src_name)
         and _is_internal(dst_name)
         and not rule.ip_ranges
+        and not _is_return_traffic(rule)
     ):
         return Finding(
             id="allow-external-to-internal",
