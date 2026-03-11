@@ -52,3 +52,6 @@ Thumbs.db
 
 # Claude AI Assistant
 .claude/
+
+#playwright
+.playwright-mcp/
