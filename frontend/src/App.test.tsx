@@ -709,6 +709,45 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Analyze with AI" })).toBeInTheDocument();
   });
 
+  it("renders MatrixSidebar in matrix view", async () => {
+    mockGetAuthStatus.mockResolvedValue({ configured: true, source: "env", url: "" });
+    mockGetZones.mockResolvedValue(testZones);
+    mockGetZonePairs.mockResolvedValue([]);
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Zones")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Grades")).toBeInTheDocument();
+    expect(screen.getByText("Cell Colors")).toBeInTheDocument();
+  });
+
+  it("hides zone from matrix when unchecked in sidebar", async () => {
+    mockGetAuthStatus.mockResolvedValue({ configured: true, source: "env", url: "" });
+    mockGetZones.mockResolvedValue(testZones);
+    mockGetZonePairs.mockResolvedValue([]);
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("matrix-zone-z1")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("matrix-zone-z2")).toBeInTheDocument();
+
+    // Uncheck the first zone
+    fireEvent.click(screen.getByLabelText("External"));
+
+    // Zone should be removed from the matrix
+    expect(screen.queryByTestId("matrix-zone-z1")).not.toBeInTheDocument();
+    // Other zone still visible
+    expect(screen.getByTestId("matrix-zone-z2")).toBeInTheDocument();
+
+    // Re-check to bring it back
+    fireEvent.click(screen.getByLabelText("External"));
+    expect(screen.getByTestId("matrix-zone-z1")).toBeInTheDocument();
+  });
+
   it("does not show Analyze with AI button when AI config fails", async () => {
     mockGetAuthStatus.mockResolvedValue({
       configured: true,
