@@ -571,15 +571,11 @@ describe("RuleEdgeComponent", () => {
     });
   });
 
-  describe("bidirectional S-curve path", () => {
-    it("uses custom path for bidirectional edges", () => {
+  describe("edge path routing", () => {
+    it("uses getSmoothStepPath for all edges including bidirectional", () => {
       render(
         <RuleEdgeComponent
           {...makeEdgeProps({
-            sourceX: 100,
-            sourceY: 0,
-            targetX: 100,
-            targetY: 300,
             data: {
               rules: [allowRule],
               allowCount: 1,
@@ -590,52 +586,11 @@ describe("RuleEdgeComponent", () => {
         />,
       );
       const edge = screen.getByTestId("edge-edge-1");
-      const path = edge.getAttribute("data-path")!;
-      // Custom path starts with M and contains A (arc) commands
-      expect(path).toMatch(/^M /);
-      expect(path).toContain("A ");
-    });
-
-    it("handles upward bidirectional edges", () => {
-      render(
-        <RuleEdgeComponent
-          {...makeEdgeProps({
-            sourceX: 100,
-            sourceY: 300,
-            targetX: 100,
-            targetY: 0,
-            data: {
-              rules: [allowRule],
-              allowCount: 1,
-              blockCount: 0,
-              edgeOffset: 1,
-            },
-          })}
-        />,
-      );
-      const edge = screen.getByTestId("edge-edge-1");
-      expect(edge.getAttribute("data-path")).toContain("A ");
-    });
-
-    it("uses getSmoothStepPath for non-bidirectional edges", () => {
-      render(
-        <RuleEdgeComponent
-          {...makeEdgeProps({
-            data: {
-              rules: [allowRule],
-              allowCount: 1,
-              blockCount: 0,
-              edgeOffset: 0,
-            },
-          })}
-        />,
-      );
-      const edge = screen.getByTestId("edge-edge-1");
       // Mock getSmoothStepPath returns "M0,0 L100,100"
       expect(edge).toHaveAttribute("data-path", "M0,0 L100,100");
     });
 
-    it("adjusts Y coordinates for upward non-bidirectional edges", () => {
+    it("renders upward edges correctly", () => {
       render(
         <RuleEdgeComponent
           {...makeEdgeProps({
@@ -652,7 +607,6 @@ describe("RuleEdgeComponent", () => {
           })}
         />,
       );
-      // getSmoothStepPath mock still returns fixed value; just ensure it renders
       expect(screen.getByTestId("edge-edge-1")).toBeInTheDocument();
     });
   });

@@ -47,42 +47,6 @@ function resolveData(data: RuleEdgeData | undefined): RuleEdgeData {
   return data;
 }
 
-const BIDIR_SHIFT = 16;
-const BIDIR_RADIUS = 8;
-
-/**
- * Build an SVG path for a bidirectional edge that starts at the source handle,
- * S-curves out to a parallel offset, runs vertically, then S-curves back to
- * the target handle. This keeps edges connected to nodes while visually separated.
- */
-function buildBidirectionalPath(
-  sx: number, sy: number,
-  tx: number, ty: number,
-  shift: number,
-): [string, number, number] {
-  const absShift = Math.abs(shift);
-  const r = Math.min(BIDIR_RADIUS, absShift / 2);
-  const xd = shift > 0 ? 1 : -1;
-  const yd = ty > sy ? 1 : -1;
-
-  const s1 = xd * yd > 0 ? 0 : 1;
-  const s2 = 1 - s1;
-  const hx = xd * r;
-  const hy = yd * r;
-
-  const parts: string[] = [`M ${sx} ${sy}`];
-  parts.push(`A ${r} ${r} 0 0 ${s1} ${sx + hx} ${sy + hy}`);
-  parts.push(`A ${r} ${r} 0 0 ${s2} ${sx + shift} ${sy + 2 * hy}`);
-  parts.push(`L ${tx + shift} ${ty - 2 * hy}`);
-  parts.push(`A ${r} ${r} 0 0 ${s2} ${tx + shift - hx} ${ty - hy}`);
-  parts.push(`A ${r} ${r} 0 0 ${s1} ${tx} ${ty}`);
-
-  const labelX = (sx + tx) / 2 + shift;
-  const labelY = (sy + ty) / 2;
-
-  return [parts.join(" "), labelX, labelY];
-}
-
 function formatPortLabel(protocol: string, portRanges: string[]): string | null {
   if (portRanges.length > 0) return `${protocol}:${portRanges.join(",")}`;
   return protocol || null;
@@ -181,35 +145,28 @@ export default function RuleEdgeComponent({
 
   const isUpward = sourceY > targetY;
 
-  // For upward edges, remap to top-of-source → bottom-of-target so the
-  // path never exits and enters on the same side of a node.
-  const sy = isUpward ? sourceY - NODE_HEIGHT : sourceY;
+  // For upward edges, move only the target to the bottom of the target node
+  // so the arrowhead is visible. The source stays at its handle position;
+  // the segment behind the source node is hidden by the node itself.
+  const sy = sourceY;
   const ty = isUpward ? targetY + NODE_HEIGHT : targetY;
 
-  const adjustedSx = sourceX + srcOff;
-  const adjustedTx = targetX + tgtOff;
+  const biDirShift = edgeOffset * 12;
+  const adjustedSx = sourceX + srcOff + biDirShift;
+  const adjustedTx = targetX + tgtOff + biDirShift;
 
-  let computedPath: string;
-  let labelPosX: number;
-  let labelPosY: number;
+  const [computedPath, labelPosX, rawLabelPosY] = getSmoothStepPath({
+    sourceX: adjustedSx,
+    sourceY: sy,
+    sourcePosition: isUpward ? Position.Top : sourcePosition,
+    targetX: adjustedTx,
+    targetY: ty,
+    targetPosition: isUpward ? Position.Bottom : targetPosition,
+    borderRadius: 16,
+  });
 
-  if (edgeOffset !== 0) {
-    // Bidirectional: S-curve path that connects to handles and runs parallel
-    const shift = edgeOffset * BIDIR_SHIFT;
-    [computedPath, labelPosX, labelPosY] = buildBidirectionalPath(
-      adjustedSx, sy, adjustedTx, ty, shift,
-    );
-  } else {
-    [computedPath, labelPosX, labelPosY] = getSmoothStepPath({
-      sourceX: adjustedSx,
-      sourceY: sy,
-      sourcePosition: isUpward ? Position.Top : sourcePosition,
-      targetX: adjustedTx,
-      targetY: ty,
-      targetPosition: isUpward ? Position.Bottom : targetPosition,
-      borderRadius: 16,
-    });
-  }
+  // Separate labels vertically for bidirectional edges to prevent overlap
+  const labelPosY = rawLabelPosY + (edgeOffset !== 0 ? edgeOffset * 60 : 0);
 
   const cardSide = edgeOffset < 0 ? "right-full mr-2" : "left-full ml-2";
   const showFullLabel = nodeCount < 4;
