@@ -3,12 +3,11 @@ import {
   BaseEdge,
   EdgeLabelRenderer,
   getSmoothStepPath,
-  Position,
+  useInternalNode,
   type EdgeProps,
   type Edge,
 } from "@xyflow/react";
 import { getActionColor, getEdgeColor } from "../utils/edgeColor";
-import { NODE_HEIGHT } from "../utils/layout";
 
 export interface RuleSummary {
   name: string;
@@ -118,8 +117,83 @@ function RuleCardContent({
   );
 }
 
+function computePath(
+  sourceX: number, sourceY: number,
+  targetX: number, targetY: number,
+  sourcePosition: string, targetPosition: string,
+  srcOff: number, tgtOff: number,
+  edgeOffset: number,
+  sourceHeight: number, targetHeight: number,
+): [string, number, number] {
+  const biDirShift = edgeOffset * 12;
+  const adjustedSx = sourceX + srcOff + biDirShift;
+  const adjustedTx = targetX + tgtOff + biDirShift;
+  const isUpward = sourceY > targetY;
+
+  if (isUpward) {
+    const sy = sourceY - sourceHeight;
+    const ty = targetY + targetHeight + 4;
+    return [
+      `M ${adjustedSx} ${sy} L ${adjustedTx} ${ty}`,
+      (adjustedSx + adjustedTx) / 2,
+      (sy + ty) / 2,
+    ];
+  }
+
+  return getSmoothStepPath({
+    sourceX: adjustedSx,
+    sourceY,
+    sourcePosition: sourcePosition as never,
+    targetX: adjustedTx,
+    targetY,
+    targetPosition: targetPosition as never,
+    borderRadius: 16,
+  });
+}
+
+function CompactPill({
+  color,
+  ruleCount,
+  cardSide,
+  children,
+}: {
+  color: string;
+  ruleCount: number;
+  cardSide: string;
+  children: React.ReactNode;
+}) {
+  const [isPinned, setIsPinned] = useState(false);
+
+  return (
+    <>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsPinned((p) => !p);
+        }}
+        className="flex items-center gap-1 rounded-full px-1.5 py-0.5 bg-white/80 dark:bg-noc-bg/80 border border-gray-200/40 dark:border-noc-border/20 cursor-pointer hover:border-gray-300 dark:hover:border-noc-border/40 transition-colors"
+      >
+        <span
+          className="w-1.5 h-1.5 rounded-full shrink-0"
+          style={{ background: color }}
+        />
+        <span className="text-[8px] font-medium text-gray-500 dark:text-noc-text-dim">
+          {ruleCount}
+        </span>
+      </button>
+      <div
+        className={`absolute top-1/2 -translate-y-1/2 ${cardSide} ${isPinned ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"} transition-opacity duration-150 z-50`}
+      >
+        {children}
+      </div>
+    </>
+  );
+}
+
 export default function RuleEdgeComponent({
   id,
+  source,
+  target,
   sourceX,
   sourceY,
   targetX,
@@ -144,32 +218,20 @@ export default function RuleEdgeComponent({
   const tgtOff = resolved.targetXOffset ?? 0;
   const nodeCount = resolved.nodeCount ?? 999;
   const color = getEdgeColor(allowCount, blockCount);
-  const [isPinned, setIsPinned] = useState(false);
 
-  const isUpward = sourceY > targetY;
+  const sourceNode = useInternalNode(source);
+  const targetNode = useInternalNode(target);
+  const sourceHeight = sourceNode?.measured?.height ?? 0;
+  const targetHeight = targetNode?.measured?.height ?? 0;
 
-  // For upward edges, remap to top-of-source → bottom-of-target so each
-  // edge visually connects at the correct node boundary.
-  const sy = isUpward ? sourceY - NODE_HEIGHT : sourceY;
-  const ty = isUpward ? targetY + NODE_HEIGHT : targetY;
+  const [computedPath, labelPosX, rawLabelPosY] = computePath(
+    sourceX, sourceY, targetX, targetY,
+    sourcePosition, targetPosition,
+    srcOff, tgtOff, edgeOffset,
+    sourceHeight, targetHeight,
+  );
 
-  const biDirShift = edgeOffset * 12;
-  const adjustedSx = sourceX + srcOff + biDirShift;
-  const adjustedTx = targetX + tgtOff + biDirShift;
-
-  const [computedPath, labelPosX, rawLabelPosY] = getSmoothStepPath({
-    sourceX: adjustedSx,
-    sourceY: sy,
-    sourcePosition: isUpward ? Position.Top : sourcePosition,
-    targetX: adjustedTx,
-    targetY: ty,
-    targetPosition: isUpward ? Position.Bottom : targetPosition,
-    borderRadius: 16,
-  });
-
-  // Separate labels vertically for bidirectional edges to prevent overlap
   const labelPosY = rawLabelPosY + (edgeOffset !== 0 ? edgeOffset * 60 : 0);
-
   const cardSide = edgeOffset < 0 ? "right-full mr-2" : "left-full ml-2";
   const showFullLabel = nodeCount < 4;
 
@@ -202,37 +264,15 @@ export default function RuleEdgeComponent({
               borderColor={color}
             />
           ) : (
-            <>
-              {/* Compact pill - always visible */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsPinned((p) => !p);
-                }}
-                className="flex items-center gap-1 rounded-full px-1.5 py-0.5 bg-white/80 dark:bg-noc-bg/80 border border-gray-200/40 dark:border-noc-border/20 cursor-pointer hover:border-gray-300 dark:hover:border-noc-border/40 transition-colors"
-              >
-                <span
-                  className="w-1.5 h-1.5 rounded-full shrink-0"
-                  style={{ background: color }}
-                />
-                <span className="text-[8px] font-medium text-gray-500 dark:text-noc-text-dim">
-                  {rules.length}
-                </span>
-              </button>
-
-              {/* Full rule card - appears on hover or when pinned */}
-              <div
-                className={`absolute top-1/2 -translate-y-1/2 ${cardSide} ${isPinned ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"} transition-opacity duration-150 z-50`}
-              >
-                <RuleCardContent
-                  rules={rules}
-                  sourceZoneName={sourceZoneName}
-                  destZoneName={destZoneName}
-                  onLabelClick={onLabelClick}
-                  borderColor={color}
-                />
-              </div>
-            </>
+            <CompactPill color={color} ruleCount={rules.length} cardSide={cardSide}>
+              <RuleCardContent
+                rules={rules}
+                sourceZoneName={sourceZoneName}
+                destZoneName={destZoneName}
+                onLabelClick={onLabelClick}
+                borderColor={color}
+              />
+            </CompactPill>
           )}
         </div>
       </EdgeLabelRenderer>
