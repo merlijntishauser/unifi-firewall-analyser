@@ -6,7 +6,7 @@ import type { Zone } from "../api/types";
 const testZones: Zone[] = [
   { id: "z1", name: "Internal", networks: [] },
   { id: "z2", name: "External", networks: [] },
-  { id: "z3", name: "DMZ", networks: [] },
+  { id: "z3", name: "IoT", networks: [] },
 ];
 
 describe("MatrixSidebar", () => {
@@ -68,7 +68,7 @@ describe("MatrixSidebar", () => {
 
     expect(screen.getByLabelText("Internal")).toBeInTheDocument();
     expect(screen.getByLabelText("External")).toBeInTheDocument();
-    expect(screen.getByLabelText("DMZ")).toBeInTheDocument();
+    expect(screen.getByLabelText("IoT")).toBeInTheDocument();
   });
 
   it("shows checkboxes as checked when zone is visible", () => {
@@ -109,6 +109,48 @@ describe("MatrixSidebar", () => {
 
     fireEvent.click(screen.getByLabelText("External"));
     expect(onToggleZone).toHaveBeenCalledWith("z2");
+  });
+
+  it("labels UniFi default zones", () => {
+    render(
+      <MatrixSidebar
+        zones={testZones}
+        hiddenZoneIds={new Set()}
+        onToggleZone={vi.fn()}
+      />,
+    );
+
+    expect(screen.getAllByText("UniFi default")).toHaveLength(2);
+  });
+
+  it("labels UniFi default zones with normalized names", () => {
+    render(
+      <MatrixSidebar
+        zones={[
+          { id: "z1", name: " vpn ", networks: [] },
+          { id: "z2", name: "dmz", networks: [] },
+          { id: "z3", name: "Custom", networks: [] },
+        ]}
+        hiddenZoneIds={new Set()}
+        onToggleZone={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("checkbox", { name: /vpn/i }).closest("label")).toHaveTextContent("UniFi default");
+    expect(screen.getByRole("checkbox", { name: /dmz/i }).closest("label")).toHaveTextContent("UniFi default");
+    expect(screen.getByRole("checkbox", { name: "Custom" }).closest("label")).not.toHaveTextContent("UniFi default");
+  });
+
+  it("does not label custom zones as UniFi defaults", () => {
+    render(
+      <MatrixSidebar
+        zones={testZones}
+        hiddenZoneIds={new Set()}
+        onToggleZone={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText("IoT").closest("label")).not.toHaveTextContent("UniFi default");
   });
 
   it("renders section headings", () => {
