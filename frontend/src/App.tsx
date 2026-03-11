@@ -46,6 +46,10 @@ function App() {
   const [state, dispatch] = useReducer(appReducer, initialAppState, initAppState);
   const { authed, authLoading, colorMode, showDisabled, selectedPair, focusZoneIds, settingsOpen, aiConfigured } = state;
 
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", colorMode === "dark");
+  }, [colorMode]);
+
   const { zones, zonePairs, loading, error, refresh } = useFirewallData(authed);
 
   const refreshAiConfig = useCallback(() => {
@@ -128,7 +132,7 @@ function App() {
 
   return (
     <div
-      className={`h-screen flex flex-col ${colorMode === "dark" ? "dark" : ""}`}
+      className="h-screen flex flex-col"
     >
       <Toolbar
         colorMode={colorMode}
