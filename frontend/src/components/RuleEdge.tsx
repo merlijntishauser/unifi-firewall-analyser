@@ -3,6 +3,7 @@ import {
   BaseEdge,
   EdgeLabelRenderer,
   getSmoothStepPath,
+  Position,
   useInternalNode,
   type EdgeProps,
   type Edge,
@@ -131,13 +132,17 @@ function computePath(
   const isUpward = sourceY > targetY;
 
   if (isUpward) {
-    const sy = sourceY - sourceHeight;
-    const ty = targetY + targetHeight + 4;
-    return [
-      `M ${adjustedSx} ${sy} L ${adjustedTx} ${ty}`,
-      (adjustedSx + adjustedTx) / 2,
-      (sy + ty) / 2,
-    ];
+    // Use measured node heights so the edge connects at top-of-source
+    // and bottom-of-target (+4 clears the node's HTML layer for the arrow).
+    return getSmoothStepPath({
+      sourceX: adjustedSx,
+      sourceY: sourceY - sourceHeight,
+      sourcePosition: Position.Top,
+      targetX: adjustedTx,
+      targetY: targetY + targetHeight + 4,
+      targetPosition: Position.Bottom,
+      borderRadius: 16,
+    });
   }
 
   return getSmoothStepPath({
@@ -231,9 +236,11 @@ export default function RuleEdgeComponent({
     sourceHeight, targetHeight,
   );
 
-  const labelPosY = rawLabelPosY + (edgeOffset !== 0 ? edgeOffset * 60 : 0);
-  const cardSide = edgeOffset < 0 ? "right-full mr-2" : "left-full ml-2";
   const showFullLabel = nodeCount < 4;
+  // Offset labels vertically in full-label mode to prevent overlap
+  const fullLabelOffset = showFullLabel ? edgeOffset * 60 : 0;
+  const labelPosY = rawLabelPosY + fullLabelOffset;
+  const cardSide = edgeOffset < 0 ? "right-full mr-2" : "left-full ml-2";
 
   return (
     <>
@@ -248,7 +255,7 @@ export default function RuleEdgeComponent({
       />
       <EdgeLabelRenderer>
         <div
-          className="nopan nodrag group"
+          className="nopan nodrag group hover:z-50"
           style={{
             position: "absolute",
             transform: `translate(-50%, -50%) translate(${labelPosX}px,${labelPosY}px)`,
