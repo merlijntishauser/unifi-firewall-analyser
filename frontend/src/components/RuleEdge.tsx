@@ -25,6 +25,7 @@ export interface RuleEdgeData {
   edgeOffset?: number;
   sourceXOffset?: number;
   targetXOffset?: number;
+  routeOffset?: number;
   sourceZoneName?: string;
   destZoneName?: string;
   nodeCount?: number;
@@ -125,6 +126,7 @@ function computePath(
   srcOff: number, tgtOff: number,
   edgeOffset: number,
   sourceHeight: number, targetHeight: number,
+  routeOffset: number,
 ): [string, number, number] {
   const biDirShift = edgeOffset * 12;
   const adjustedSx = sourceX + srcOff + biDirShift;
@@ -132,8 +134,6 @@ function computePath(
   const isUpward = sourceY > targetY;
 
   if (isUpward) {
-    // Use measured node heights so the edge connects at top-of-source
-    // and bottom-of-target (+4 clears the node's HTML layer for the arrow).
     return getSmoothStepPath({
       sourceX: adjustedSx,
       sourceY: sourceY - sourceHeight,
@@ -142,6 +142,7 @@ function computePath(
       targetY: targetY + targetHeight + 4,
       targetPosition: Position.Bottom,
       borderRadius: 16,
+      offset: routeOffset,
     });
   }
 
@@ -153,6 +154,7 @@ function computePath(
     targetY,
     targetPosition: targetPosition as never,
     borderRadius: 16,
+    offset: routeOffset,
   });
 }
 
@@ -195,6 +197,11 @@ function CompactPill({
   );
 }
 
+function useMeasuredHeight(nodeId: string): number {
+  const node = useInternalNode(nodeId);
+  return node?.measured?.height ?? 0;
+}
+
 export default function RuleEdgeComponent({
   id,
   source,
@@ -216,24 +223,23 @@ export default function RuleEdgeComponent({
     blockCount,
     onLabelClick,
     edgeOffset = 0,
+    sourceXOffset: srcOff = 0,
+    targetXOffset: tgtOff = 0,
+    routeOffset = 20,
+    nodeCount = 999,
     sourceZoneName,
     destZoneName,
   } = resolved;
-  const srcOff = resolved.sourceXOffset ?? 0;
-  const tgtOff = resolved.targetXOffset ?? 0;
-  const nodeCount = resolved.nodeCount ?? 999;
   const color = getEdgeColor(allowCount, blockCount);
 
-  const sourceNode = useInternalNode(source);
-  const targetNode = useInternalNode(target);
-  const sourceHeight = sourceNode?.measured?.height ?? 0;
-  const targetHeight = targetNode?.measured?.height ?? 0;
-
+  const sourceHeight = useMeasuredHeight(source);
+  const targetHeight = useMeasuredHeight(target);
   const [computedPath, labelPosX, rawLabelPosY] = computePath(
     sourceX, sourceY, targetX, targetY,
     sourcePosition, targetPosition,
     srcOff, tgtOff, edgeOffset,
     sourceHeight, targetHeight,
+    routeOffset,
   );
 
   const showFullLabel = nodeCount < 4;
