@@ -7,11 +7,11 @@ interface MatrixSidebarProps {
 }
 
 const GRADES = [
-  { grade: "A", range: "90 - 100", color: "bg-green-500 dark:bg-status-success" },
-  { grade: "B", range: "80 - 89", color: "bg-green-400 dark:bg-status-success/70" },
-  { grade: "C", range: "65 - 79", color: "bg-amber-400 dark:bg-status-warning" },
-  { grade: "D", range: "50 - 64", color: "bg-red-400 dark:bg-status-danger/70" },
-  { grade: "F", range: "0 - 49", color: "bg-red-500 dark:bg-status-danger" },
+  { grade: "A", range: "90 - 100", hint: "Minimal or no issues", color: "bg-green-500 dark:bg-status-success" },
+  { grade: "B", range: "80 - 89", hint: "Minor issues found", color: "bg-green-400 dark:bg-status-success/70" },
+  { grade: "C", range: "65 - 79", hint: "Moderate risk", color: "bg-amber-400 dark:bg-status-warning" },
+  { grade: "D", range: "50 - 64", hint: "Significant risk", color: "bg-red-400 dark:bg-status-danger/70" },
+  { grade: "F", range: "0 - 49", hint: "Critical issues", color: "bg-red-500 dark:bg-status-danger" },
 ];
 
 const CELL_COLORS = [
@@ -33,13 +33,19 @@ export default function MatrixSidebar({ zones, hiddenZoneIds, onToggleZone }: Ma
   return (
     <div className="w-[220px] shrink-0 border-r border-gray-200 dark:border-noc-border bg-white dark:bg-noc-surface px-4 py-5 overflow-y-auto flex flex-col gap-5">
       <section>
-        <SectionHeading>Grades</SectionHeading>
-        <div className="flex flex-col gap-1.5">
-          {GRADES.map(({ grade, range, color }) => (
+        <SectionHeading>Security Score</SectionHeading>
+        <p className="text-[11px] text-gray-500 dark:text-noc-text-secondary mb-2 leading-relaxed">
+          Each zone pair starts at 100 and loses points per finding: <span className="font-semibold text-status-danger">-15</span> high, <span className="font-semibold text-status-warning">-8</span> medium, <span className="font-semibold text-gray-400 dark:text-noc-text-dim">-2</span> low.
+        </p>
+        <div className="flex flex-col gap-1">
+          {GRADES.map(({ grade, range, hint, color }) => (
             <div key={grade} className="flex items-center gap-2">
               <span className={`w-3 h-3 rounded-sm shrink-0 ${color}`} />
               <span className="text-xs font-semibold text-gray-700 dark:text-noc-text w-4">{grade}</span>
-              <span className="text-[11px] text-gray-400 dark:text-noc-text-dim">{range}</span>
+              <div className="flex flex-col min-w-0">
+                <span className="text-[11px] text-gray-400 dark:text-noc-text-dim">{range}</span>
+                <span className="text-[10px] text-gray-400 dark:text-noc-text-dim/70">{hint}</span>
+              </div>
             </div>
           ))}
         </div>

@@ -719,7 +719,7 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByText("Zones")).toBeInTheDocument();
     });
-    expect(screen.getByText("Grades")).toBeInTheDocument();
+    expect(screen.getByText("Security Score")).toBeInTheDocument();
     expect(screen.getByText("Cell Colors")).toBeInTheDocument();
   });
 

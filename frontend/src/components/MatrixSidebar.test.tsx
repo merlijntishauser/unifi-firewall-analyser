@@ -120,8 +120,36 @@ describe("MatrixSidebar", () => {
       />,
     );
 
-    expect(screen.getByText("Grades")).toBeInTheDocument();
+    expect(screen.getByText("Security Score")).toBeInTheDocument();
     expect(screen.getByText("Cell Colors")).toBeInTheDocument();
     expect(screen.getByText("Zones")).toBeInTheDocument();
+  });
+
+  it("renders scoring explanation", () => {
+    render(
+      <MatrixSidebar
+        zones={testZones}
+        hiddenZoneIds={new Set()}
+        onToggleZone={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/starts at 100/)).toBeInTheDocument();
+    expect(screen.getByText("-15")).toBeInTheDocument();
+    expect(screen.getByText("-8")).toBeInTheDocument();
+    expect(screen.getByText("-2")).toBeInTheDocument();
+  });
+
+  it("renders grade hints", () => {
+    render(
+      <MatrixSidebar
+        zones={testZones}
+        hiddenZoneIds={new Set()}
+        onToggleZone={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Minimal or no issues")).toBeInTheDocument();
+    expect(screen.getByText("Critical issues")).toBeInTheDocument();
   });
 });
