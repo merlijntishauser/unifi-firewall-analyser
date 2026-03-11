@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   ReactFlow,
   Background,
@@ -19,6 +19,46 @@ import RuleEdgeComponent, { type RuleEdgeData } from "./RuleEdge";
 
 const nodeTypes = { zone: ZoneNodeComponent };
 const edgeTypes = { rule: RuleEdgeComponent };
+
+const SCALE_RE = /translate\(([^,]+),\s*([^)]+)\)\s*scale\(([^)]+)\)/;
+
+/**
+ * Replace CSS transform scale() with CSS zoom on the ReactFlow viewport.
+ * CSS zoom re-renders content at native resolution, avoiding the blurriness
+ * that CSS transform scale() causes (which scales already-rendered pixels).
+ */
+function useCrispZoom() {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const viewport = container.querySelector(".react-flow__viewport") as HTMLElement | null;
+    if (!viewport) return;
+
+    const applyZoomFix = () => {
+      const transform = viewport.style.transform;
+      if (!transform.includes("scale(")) return;
+      const match = transform.match(SCALE_RE);
+      if (!match) return;
+
+      const tx = parseFloat(match[1]);
+      const ty = parseFloat(match[2]);
+      const scale = parseFloat(match[3]);
+
+      viewport.style.transform = `translate(${tx / scale}px, ${ty / scale}px)`;
+      viewport.style.zoom = String(scale);
+    };
+
+    const observer = new MutationObserver(applyZoomFix);
+    observer.observe(viewport, { attributes: true, attributeFilter: ["style"] });
+    applyZoomFix();
+
+    return () => observer.disconnect();
+  }, []);
+
+  return containerRef;
+}
 
 interface ZoneGraphProps {
   zones: Zone[];
@@ -137,25 +177,28 @@ function ZoneGraphInner({
 }) {
   const [nodes, , onNodesChange] = useNodesState(initialNodes);
   const [edges, , onEdgesChange] = useEdgesState(initialEdges);
+  const containerRef = useCrispZoom();
 
   return (
-    <ReactFlow
-      nodes={nodes}
-      edges={edges}
-      onNodesChange={onNodesChange}
-      onEdgesChange={onEdgesChange}
-      onEdgeClick={onEdgeClick}
-      nodeTypes={nodeTypes}
-      edgeTypes={edgeTypes}
-      colorMode={colorMode}
-      fitView
-      minZoom={0.3}
-      maxZoom={2}
-    >
-      <Background />
-      <Controls />
-      <MiniMap />
-    </ReactFlow>
+    <div ref={containerRef} className="w-full h-full">
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onEdgeClick={onEdgeClick}
+        nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        colorMode={colorMode}
+        fitView
+        minZoom={0.3}
+        maxZoom={2}
+      >
+        <Background />
+        <Controls />
+        <MiniMap />
+      </ReactFlow>
+    </div>
   );
 }
 
