@@ -57,11 +57,13 @@ function RuleCardContent({
   sourceZoneName,
   destZoneName,
   onLabelClick,
+  borderColor,
 }: {
   rules: RuleSummary[];
   sourceZoneName?: string;
   destZoneName?: string;
   onLabelClick?: () => void;
+  borderColor?: string;
 }) {
   const visibleRules = rules.slice(0, MAX_VISIBLE);
   const overflow = Math.max(0, rules.length - MAX_VISIBLE);
@@ -72,7 +74,8 @@ function RuleCardContent({
         e.stopPropagation();
         onLabelClick?.();
       }}
-      className="rounded px-1 py-0.5 max-w-[170px] bg-white/95 dark:bg-noc-bg/95 backdrop-blur-sm border border-gray-200/50 dark:border-noc-border/30 shadow-lg cursor-pointer"
+      className="rounded px-1 py-0.5 max-w-[170px] bg-white/95 dark:bg-noc-bg/95 backdrop-blur-sm border shadow-lg cursor-pointer"
+      style={borderColor ? { borderColor } : undefined}
     >
       {sourceZoneName && destZoneName && (
         <div className="text-[8px] text-gray-400 dark:text-noc-text-dim pb-0.5 text-left border-b border-gray-200/30 dark:border-noc-border/20 mb-0.5">
@@ -145,10 +148,9 @@ export default function RuleEdgeComponent({
 
   const isUpward = sourceY > targetY;
 
-  // For upward edges, move only the target to the bottom of the target node
-  // so the arrowhead is visible. The source stays at its handle position;
-  // the segment behind the source node is hidden by the node itself.
-  const sy = sourceY;
+  // For upward edges, remap to top-of-source → bottom-of-target so each
+  // edge visually connects at the correct node boundary.
+  const sy = isUpward ? sourceY - NODE_HEIGHT : sourceY;
   const ty = isUpward ? targetY + NODE_HEIGHT : targetY;
 
   const biDirShift = edgeOffset * 12;
@@ -197,6 +199,7 @@ export default function RuleEdgeComponent({
               sourceZoneName={sourceZoneName}
               destZoneName={destZoneName}
               onLabelClick={onLabelClick}
+              borderColor={color}
             />
           ) : (
             <>
@@ -226,6 +229,7 @@ export default function RuleEdgeComponent({
                   sourceZoneName={sourceZoneName}
                   destZoneName={destZoneName}
                   onLabelClick={onLabelClick}
+                  borderColor={color}
                 />
               </div>
             </>
