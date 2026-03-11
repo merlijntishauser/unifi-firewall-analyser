@@ -100,6 +100,10 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.cache_scope }}
           cache-to: type=gha,mode=max,scope=${{ matrix.cache_scope }}
       - run: ./scripts/smoke-test-image.sh "${{ matrix.image_tag }}" "${{ matrix.container_name }}" "${{ matrix.host_port }}"
+      - uses: aquasecurity/setup-trivy@v0.2.3
+        with:
+          version: v0.68.1
+          cache: true
       - uses: aquasecurity/trivy-action@0.33.1
         with:
           image-ref: ${{ matrix.image_tag }}
@@ -108,17 +112,19 @@ jobs:
           vuln-type: os,library
           severity: HIGH,CRITICAL
           ignore-unfixed: true
-      - uses: github/codeql-action/upload-sarif@v4
+          limit-severities-for-sarif: true
+          exit-code: "1"
+          skip-setup-trivy: true
+      - id: trivy_sarif
         if: always() && github.event_name != 'pull_request'
+        run: |
+          if [ -f "trivy-results-${{ matrix.variant }}.sarif" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: github/codeql-action/upload-sarif@v4
+        if: always() && github.event_name != 'pull_request' && steps.trivy_sarif.outputs.present == 'true'
         with:
           sarif_file: trivy-results-${{ matrix.variant }}.sarif
           category: trivy-${{ matrix.variant }}
-      - uses: aquasecurity/trivy-action@0.33.1
-        with:
-          image-ref: ${{ matrix.image_tag }}
-          format: table
-          vuln-type: os,library
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          exit-code: "1"
-          skip-setup-trivy: true
