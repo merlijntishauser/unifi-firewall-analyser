@@ -29,7 +29,7 @@ vi.mock("@xyflow/react", () => ({
     <div data-testid="edge-label-renderer">{children}</div>
   ),
   getSmoothStepPath: () => ["M0,0 L100,100", 50, 50],
-  useInternalNode: () => ({ measured: { height: 100 } }),
+  useInternalNode: vi.fn(() => ({ measured: { height: 100 } })),
   Position: { Left: "left", Top: "top", Right: "right", Bottom: "bottom" },
 }));
 
@@ -573,7 +573,7 @@ describe("RuleEdgeComponent", () => {
   });
 
   describe("edge path routing", () => {
-    it("uses getSmoothStepPath for all edges including bidirectional", () => {
+    it("builds custom step path with parallel horizontal segments", () => {
       render(
         <RuleEdgeComponent
           {...makeEdgeProps({
@@ -587,17 +587,20 @@ describe("RuleEdgeComponent", () => {
         />,
       );
       const edge = screen.getByTestId("edge-edge-1");
-      // Mock getSmoothStepPath returns "M0,0 L100,100"
-      expect(edge).toHaveAttribute("data-path", "M0,0 L100,100");
+      const path = edge.getAttribute("data-path") ?? "";
+      // Custom path builder creates step path with corners
+      expect(path).toContain("M ");
+      expect(path).toContain("Q ");
+      expect(path).not.toBe("M0,0 L100,100");
     });
 
-    it("renders upward edges correctly", () => {
+    it("renders upward edges with horizontal segments", () => {
       render(
         <RuleEdgeComponent
           {...makeEdgeProps({
-            sourceX: 100,
+            sourceX: 200,
             sourceY: 300,
-            targetX: 100,
+            targetX: 50,
             targetY: 0,
             data: {
               rules: [allowRule],
@@ -608,7 +611,75 @@ describe("RuleEdgeComponent", () => {
           })}
         />,
       );
+      const edge = screen.getByTestId("edge-edge-1");
+      const path = edge.getAttribute("data-path") ?? "";
+      expect(path).toContain("Q ");
+    });
+
+    it("draws straight line for nearly vertical edges", () => {
+      render(
+        <RuleEdgeComponent
+          {...makeEdgeProps({
+            sourceX: 100,
+            sourceY: 0,
+            targetX: 101,
+            targetY: 200,
+            data: {
+              rules: [allowRule],
+              allowCount: 1,
+              blockCount: 0,
+              edgeOffset: 0,
+            },
+          })}
+        />,
+      );
+      const edge = screen.getByTestId("edge-edge-1");
+      const path = edge.getAttribute("data-path") ?? "";
+      // Nearly vertical (dx < 2) produces straight line without Q curves
+      expect(path).not.toContain("Q ");
+    });
+
+    it("handles right-to-left edge direction", () => {
+      render(
+        <RuleEdgeComponent
+          {...makeEdgeProps({
+            sourceX: 500,
+            sourceY: 0,
+            targetX: 100,
+            targetY: 200,
+            data: {
+              rules: [allowRule],
+              allowCount: 1,
+              blockCount: 0,
+              edgeOffset: 0,
+            },
+          })}
+        />,
+      );
+      const edge = screen.getByTestId("edge-edge-1");
+      const path = edge.getAttribute("data-path") ?? "";
+      expect(path).toContain("M ");
+      expect(path).toContain("Q ");
+    });
+  });
+
+  describe("handles missing node measurements", () => {
+    it("falls back to zero height when node is not measured", async () => {
+      const { useInternalNode } = await import("@xyflow/react");
+      const mockFn = vi.mocked(useInternalNode);
+      mockFn.mockReturnValue(null as never);
+      render(
+        <RuleEdgeComponent
+          {...makeEdgeProps({
+            sourceX: 100,
+            sourceY: 300,
+            targetX: 50,
+            targetY: 0,
+          })}
+        />,
+      );
       expect(screen.getByTestId("edge-edge-1")).toBeInTheDocument();
+      mockFn.mockReturnValue({ measured: { height: 100 } } as never);
     });
   });
 

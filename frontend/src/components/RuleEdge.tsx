@@ -2,8 +2,6 @@ import { useState } from "react";
 import {
   BaseEdge,
   EdgeLabelRenderer,
-  getSmoothStepPath,
-  Position,
   useInternalNode,
   type EdgeProps,
   type Edge,
@@ -119,43 +117,61 @@ function RuleCardContent({
   );
 }
 
+const CORNER_RADIUS = 16;
+
+function buildStepPath(
+  sx: number, sy: number,
+  tx: number, ty: number,
+  horizontalY: number,
+): [string, number, number] {
+  const dx = tx - sx;
+
+  if (Math.abs(dx) < 2) {
+    return [`M ${sx} ${sy} L ${tx} ${ty}`, (sx + tx) / 2, (sy + ty) / 2];
+  }
+
+  const r = Math.min(CORNER_RADIUS, Math.abs(dx) / 2);
+  const signX = dx > 0 ? 1 : -1;
+  const signY = ty > sy ? 1 : -1;
+
+  const minY = Math.min(sy, ty) + r + 1;
+  const maxY = Math.max(sy, ty) - r - 1;
+  const hY = Math.max(minY, Math.min(maxY, horizontalY));
+
+  const d = [
+    `M ${sx} ${sy}`,
+    `L ${sx} ${hY - signY * r}`,
+    `Q ${sx} ${hY} ${sx + signX * r} ${hY}`,
+    `L ${tx - signX * r} ${hY}`,
+    `Q ${tx} ${hY} ${tx} ${hY + signY * r}`,
+    `L ${tx} ${ty}`,
+  ].join(" ");
+
+  return [d, (sx + tx) / 2, hY];
+}
+
 function computePath(
   sourceX: number, sourceY: number,
   targetX: number, targetY: number,
-  sourcePosition: string, targetPosition: string,
   srcOff: number, tgtOff: number,
   edgeOffset: number,
   sourceHeight: number, targetHeight: number,
   routeOffset: number,
 ): [string, number, number] {
   const biDirShift = edgeOffset * 12;
-  const adjustedSx = sourceX + srcOff + biDirShift;
-  const adjustedTx = targetX + tgtOff + biDirShift;
+  const sx = sourceX + srcOff + biDirShift;
+  const tx = targetX + tgtOff + biDirShift;
   const isUpward = sourceY > targetY;
 
   if (isUpward) {
-    return getSmoothStepPath({
-      sourceX: adjustedSx,
-      sourceY: sourceY - sourceHeight,
-      sourcePosition: Position.Top,
-      targetX: adjustedTx,
-      targetY: targetY + targetHeight + 4,
-      targetPosition: Position.Bottom,
-      borderRadius: 16,
-      offset: routeOffset,
-    });
+    const sy = sourceY - sourceHeight;
+    const ty = targetY + targetHeight + 4;
+    const midY = (sy + ty) / 2;
+    return buildStepPath(sx, sy, tx, ty, midY - routeOffset);
   }
 
-  return getSmoothStepPath({
-    sourceX: adjustedSx,
-    sourceY,
-    sourcePosition: sourcePosition as never,
-    targetX: adjustedTx,
-    targetY,
-    targetPosition: targetPosition as never,
-    borderRadius: 16,
-    offset: routeOffset,
-  });
+  const midY = (sourceY + targetY) / 2;
+  return buildStepPath(sx, sourceY, tx, targetY, midY + routeOffset);
 }
 
 function CompactPill({
@@ -210,8 +226,6 @@ export default function RuleEdgeComponent({
   sourceY,
   targetX,
   targetY,
-  sourcePosition,
-  targetPosition,
   data,
   selected,
   markerEnd,
@@ -236,7 +250,6 @@ export default function RuleEdgeComponent({
   const targetHeight = useMeasuredHeight(target);
   const [computedPath, labelPosX, rawLabelPosY] = computePath(
     sourceX, sourceY, targetX, targetY,
-    sourcePosition, targetPosition,
     srcOff, tgtOff, edgeOffset,
     sourceHeight, targetHeight,
     routeOffset,

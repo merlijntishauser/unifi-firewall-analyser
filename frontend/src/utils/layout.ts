@@ -38,7 +38,8 @@ function computeEdgeOffsets(
 
   const sourceOffsets = new Map<string, number>();
   const targetOffsets = new Map<string, number>();
-  const routeOffsets = new Map<string, number>();
+  const sourceRouteOffsets = new Map<string, number>();
+  const targetRouteOffsets = new Map<string, number>();
 
   for (const [, nodeEdges] of outgoing) {
     const sorted = [...nodeEdges].sort(
@@ -48,7 +49,7 @@ function computeEdgeOffsets(
     for (let i = 0; i < n; i++) {
       const offset = n === 1 ? 0 : -SPREAD_HALF + (i * 2 * SPREAD_HALF) / (n - 1);
       sourceOffsets.set(sorted[i].id, offset);
-      routeOffsets.set(sorted[i].id, BASE_ROUTE_OFFSET + i * ROUTE_OFFSET_STEP);
+      sourceRouteOffsets.set(sorted[i].id, BASE_ROUTE_OFFSET + i * ROUTE_OFFSET_STEP);
     }
   }
 
@@ -60,7 +61,15 @@ function computeEdgeOffsets(
     for (let i = 0; i < n; i++) {
       const offset = n === 1 ? 0 : -SPREAD_HALF + (i * 2 * SPREAD_HALF) / (n - 1);
       targetOffsets.set(sorted[i].id, offset);
+      targetRouteOffsets.set(sorted[i].id, BASE_ROUTE_OFFSET + i * ROUTE_OFFSET_STEP);
     }
+  }
+
+  const routeOffsets = new Map<string, number>();
+  for (const edge of edges) {
+    const src = sourceRouteOffsets.get(edge.id) ?? BASE_ROUTE_OFFSET;
+    const tgt = targetRouteOffsets.get(edge.id) ?? BASE_ROUTE_OFFSET;
+    routeOffsets.set(edge.id, Math.max(src, tgt));
   }
 
   return { sourceOffsets, targetOffsets, routeOffsets };
