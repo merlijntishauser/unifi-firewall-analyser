@@ -29,17 +29,22 @@ function computeEdgeOffsets(
   const outgoing = new Map<string, Edge[]>();
   const incoming = new Map<string, Edge[]>();
 
+  const sourceOffsets = new Map<string, number>();
+  const targetOffsets = new Map<string, number>();
+  const sourceRouteOffsets = new Map<string, number>();
+  const targetRouteOffsets = new Map<string, number>();
+
   for (const edge of edges) {
     if (!outgoing.has(edge.source)) outgoing.set(edge.source, []);
     outgoing.get(edge.source)!.push(edge);
     if (!incoming.has(edge.target)) incoming.set(edge.target, []);
     incoming.get(edge.target)!.push(edge);
+    // Defaults — overwritten by the loops below
+    sourceOffsets.set(edge.id, 0);
+    targetOffsets.set(edge.id, 0);
+    sourceRouteOffsets.set(edge.id, BASE_ROUTE_OFFSET);
+    targetRouteOffsets.set(edge.id, BASE_ROUTE_OFFSET);
   }
-
-  const sourceOffsets = new Map<string, number>();
-  const targetOffsets = new Map<string, number>();
-  const sourceRouteOffsets = new Map<string, number>();
-  const targetRouteOffsets = new Map<string, number>();
 
   for (const [, nodeEdges] of outgoing) {
     const sorted = [...nodeEdges].sort(
@@ -67,9 +72,10 @@ function computeEdgeOffsets(
 
   const routeOffsets = new Map<string, number>();
   for (const edge of edges) {
-    const src = sourceRouteOffsets.get(edge.id) ?? BASE_ROUTE_OFFSET;
-    const tgt = targetRouteOffsets.get(edge.id) ?? BASE_ROUTE_OFFSET;
-    routeOffsets.set(edge.id, Math.max(src, tgt));
+    routeOffsets.set(
+      edge.id,
+      Math.max(sourceRouteOffsets.get(edge.id)!, targetRouteOffsets.get(edge.id)!),
+    );
   }
 
   return { sourceOffsets, targetOffsets, routeOffsets };
@@ -105,9 +111,9 @@ export function getLayoutedElements(
     ...edge,
     data: {
       ...edge.data,
-      sourceXOffset: sourceOffsets.get(edge.id) ?? 0,
-      targetXOffset: targetOffsets.get(edge.id) ?? 0,
-      routeOffset: routeOffsets.get(edge.id) ?? BASE_ROUTE_OFFSET,
+      sourceXOffset: sourceOffsets.get(edge.id)!,
+      targetXOffset: targetOffsets.get(edge.id)!,
+      routeOffset: routeOffsets.get(edge.id)!,
     },
   }));
 

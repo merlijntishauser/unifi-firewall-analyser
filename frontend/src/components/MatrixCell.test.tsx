@@ -60,4 +60,9 @@ describe("MatrixCell", () => {
     render(<MatrixCell totalRules={1} grade="A" onClick={vi.fn()} />);
     expect(screen.getByRole("button")).not.toHaveClass("opacity-40");
   });
+
+  it("renders gray grade text for unrecognized grade", () => {
+    render(<MatrixCell totalRules={1} grade="X" onClick={vi.fn()} />);
+    expect(screen.getByText("X")).toHaveClass("text-gray-500");
+  });
 });

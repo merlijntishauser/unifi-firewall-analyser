@@ -117,6 +117,16 @@ describe("ZoneMatrix", () => {
     });
   });
 
+  it("does not call onCellClick when clicking a cell with no matching pair", () => {
+    render(
+      <ZoneMatrix zones={zones} zonePairs={zonePairs} onCellClick={onCellClick} onZoneClick={onZoneClick} />,
+    );
+    // z2→z1 has no pair — all 0-rule cells
+    const emptyCells = screen.getAllByTestId("cell-0");
+    fireEvent.click(emptyCells[0]);
+    expect(onCellClick).not.toHaveBeenCalled();
+  });
+
   it("renders nothing when zones is empty", () => {
     render(
       <ZoneMatrix zones={[]} zonePairs={[]} onCellClick={onCellClick} onZoneClick={onZoneClick} />,
