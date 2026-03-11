@@ -77,6 +77,8 @@ function buildElements(
 
   const zoneNameMap = new Map(zones.map((z) => [z.id, z.name]));
 
+  const nodeCount = rawNodes.length;
+
   const rawEdges: Edge<RuleEdgeData>[] = filteredPairs.map((pair) => {
     const reverseKey = `${pair.destination_zone_id}|${pair.source_zone_id}`;
     const isBidirectional = pairKeys.has(reverseKey);
@@ -110,6 +112,7 @@ function buildElements(
         allowCount: pair.allow_count,
         blockCount: pair.block_count,
         edgeOffset,
+        nodeCount,
         sourceZoneName: zoneNameMap.get(pair.source_zone_id) ?? "",
         destZoneName: zoneNameMap.get(pair.destination_zone_id) ?? "",
         onLabelClick: () => onEdgeSelect(pair),

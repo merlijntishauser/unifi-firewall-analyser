@@ -27,6 +27,7 @@ export interface RuleEdgeData {
   targetXOffset?: number;
   sourceZoneName?: string;
   destZoneName?: string;
+  nodeCount?: number;
   onLabelClick?: () => void;
   [key: string]: unknown;
 }
@@ -44,6 +45,42 @@ const DATA_DEFAULTS: Omit<RuleEdgeData, "onLabelClick"> = {
 function resolveData(data: RuleEdgeData | undefined): RuleEdgeData {
   if (!data) return { ...DATA_DEFAULTS };
   return data;
+}
+
+const BIDIR_SHIFT = 16;
+const BIDIR_RADIUS = 8;
+
+/**
+ * Build an SVG path for a bidirectional edge that starts at the source handle,
+ * S-curves out to a parallel offset, runs vertically, then S-curves back to
+ * the target handle. This keeps edges connected to nodes while visually separated.
+ */
+function buildBidirectionalPath(
+  sx: number, sy: number,
+  tx: number, ty: number,
+  shift: number,
+): [string, number, number] {
+  const absShift = Math.abs(shift);
+  const r = Math.min(BIDIR_RADIUS, absShift / 2);
+  const xd = shift > 0 ? 1 : -1;
+  const yd = ty > sy ? 1 : -1;
+
+  const s1 = xd * yd > 0 ? 0 : 1;
+  const s2 = 1 - s1;
+  const hx = xd * r;
+  const hy = yd * r;
+
+  const parts: string[] = [`M ${sx} ${sy}`];
+  parts.push(`A ${r} ${r} 0 0 ${s1} ${sx + hx} ${sy + hy}`);
+  parts.push(`A ${r} ${r} 0 0 ${s2} ${sx + shift} ${sy + 2 * hy}`);
+  parts.push(`L ${tx + shift} ${ty - 2 * hy}`);
+  parts.push(`A ${r} ${r} 0 0 ${s2} ${tx + shift - hx} ${ty - hy}`);
+  parts.push(`A ${r} ${r} 0 0 ${s1} ${tx} ${ty}`);
+
+  const labelX = (sx + tx) / 2 + shift;
+  const labelY = (sy + ty) / 2;
+
+  return [parts.join(" "), labelX, labelY];
 }
 
 function formatPortLabel(protocol: string, portRanges: string[]): string | null {
@@ -138,8 +175,7 @@ export default function RuleEdgeComponent({
   } = resolved;
   const srcOff = resolved.sourceXOffset ?? 0;
   const tgtOff = resolved.targetXOffset ?? 0;
-  // Shift bidirectional edges apart so they render as parallel lines
-  const biDirShift = edgeOffset * 12;
+  const nodeCount = resolved.nodeCount ?? 999;
   const color = getEdgeColor(allowCount, blockCount);
   const [isPinned, setIsPinned] = useState(false);
 
@@ -150,17 +186,33 @@ export default function RuleEdgeComponent({
   const sy = isUpward ? sourceY - NODE_HEIGHT : sourceY;
   const ty = isUpward ? targetY + NODE_HEIGHT : targetY;
 
-  const [computedPath, labelPosX, labelPosY] = getSmoothStepPath({
-    sourceX: sourceX + srcOff + biDirShift,
-    sourceY: sy,
-    sourcePosition: isUpward ? Position.Top : sourcePosition,
-    targetX: targetX + tgtOff + biDirShift,
-    targetY: ty,
-    targetPosition: isUpward ? Position.Bottom : targetPosition,
-    borderRadius: 16,
-  });
+  const adjustedSx = sourceX + srcOff;
+  const adjustedTx = targetX + tgtOff;
+
+  let computedPath: string;
+  let labelPosX: number;
+  let labelPosY: number;
+
+  if (edgeOffset !== 0) {
+    // Bidirectional: S-curve path that connects to handles and runs parallel
+    const shift = edgeOffset * BIDIR_SHIFT;
+    [computedPath, labelPosX, labelPosY] = buildBidirectionalPath(
+      adjustedSx, sy, adjustedTx, ty, shift,
+    );
+  } else {
+    [computedPath, labelPosX, labelPosY] = getSmoothStepPath({
+      sourceX: adjustedSx,
+      sourceY: sy,
+      sourcePosition: isUpward ? Position.Top : sourcePosition,
+      targetX: adjustedTx,
+      targetY: ty,
+      targetPosition: isUpward ? Position.Bottom : targetPosition,
+      borderRadius: 16,
+    });
+  }
 
   const cardSide = edgeOffset < 0 ? "right-full mr-2" : "left-full ml-2";
+  const showFullLabel = nodeCount < 4;
 
   return (
     <>
@@ -182,34 +234,45 @@ export default function RuleEdgeComponent({
             pointerEvents: "all",
           }}
         >
-          {/* Compact pill - always visible */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsPinned((p) => !p);
-            }}
-            className="flex items-center gap-1 rounded-full px-1.5 py-0.5 bg-white/80 dark:bg-noc-bg/80 border border-gray-200/40 dark:border-noc-border/20 cursor-pointer hover:border-gray-300 dark:hover:border-noc-border/40 transition-colors"
-          >
-            <span
-              className="w-1.5 h-1.5 rounded-full shrink-0"
-              style={{ background: color }}
-            />
-            <span className="text-[8px] font-medium text-gray-500 dark:text-noc-text-dim">
-              {rules.length}
-            </span>
-          </button>
-
-          {/* Full rule card - appears on hover or when pinned */}
-          <div
-            className={`absolute top-1/2 -translate-y-1/2 ${cardSide} ${isPinned ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"} transition-opacity duration-150 z-50`}
-          >
+          {showFullLabel ? (
             <RuleCardContent
               rules={rules}
               sourceZoneName={sourceZoneName}
               destZoneName={destZoneName}
               onLabelClick={onLabelClick}
             />
-          </div>
+          ) : (
+            <>
+              {/* Compact pill - always visible */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsPinned((p) => !p);
+                }}
+                className="flex items-center gap-1 rounded-full px-1.5 py-0.5 bg-white/80 dark:bg-noc-bg/80 border border-gray-200/40 dark:border-noc-border/20 cursor-pointer hover:border-gray-300 dark:hover:border-noc-border/40 transition-colors"
+              >
+                <span
+                  className="w-1.5 h-1.5 rounded-full shrink-0"
+                  style={{ background: color }}
+                />
+                <span className="text-[8px] font-medium text-gray-500 dark:text-noc-text-dim">
+                  {rules.length}
+                </span>
+              </button>
+
+              {/* Full rule card - appears on hover or when pinned */}
+              <div
+                className={`absolute top-1/2 -translate-y-1/2 ${cardSide} ${isPinned ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"} transition-opacity duration-150 z-50`}
+              >
+                <RuleCardContent
+                  rules={rules}
+                  sourceZoneName={sourceZoneName}
+                  destZoneName={destZoneName}
+                  onLabelClick={onLabelClick}
+                />
+              </div>
+            </>
+          )}
         </div>
       </EdgeLabelRenderer>
     </>

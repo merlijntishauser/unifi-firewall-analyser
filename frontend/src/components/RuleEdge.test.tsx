@@ -518,6 +518,145 @@ describe("RuleEdgeComponent", () => {
     });
   });
 
+  describe("full label for small graphs", () => {
+    it("shows full rule card when nodeCount < 4", () => {
+      render(
+        <RuleEdgeComponent
+          {...makeEdgeProps({
+            data: {
+              rules: [allowRule, blockRule],
+              allowCount: 1,
+              blockCount: 1,
+              nodeCount: 2,
+            },
+          })}
+        />,
+      );
+      // Full card shows rule names directly, no pill count
+      expect(screen.getByText("Allow HTTP")).toBeInTheDocument();
+      expect(screen.getByText("Block SSH")).toBeInTheDocument();
+      expect(screen.queryByText("2")).not.toBeInTheDocument();
+    });
+
+    it("shows compact pill when nodeCount >= 4", () => {
+      render(
+        <RuleEdgeComponent
+          {...makeEdgeProps({
+            data: {
+              rules: [allowRule, blockRule],
+              allowCount: 1,
+              blockCount: 1,
+              nodeCount: 5,
+            },
+          })}
+        />,
+      );
+      // Pill shows count, rule names only in hover card
+      expect(screen.getByText("2")).toBeInTheDocument();
+    });
+
+    it("shows compact pill when nodeCount is not provided", () => {
+      render(
+        <RuleEdgeComponent
+          {...makeEdgeProps({
+            data: {
+              rules: [allowRule],
+              allowCount: 1,
+              blockCount: 0,
+            },
+          })}
+        />,
+      );
+      expect(screen.getByText("1")).toBeInTheDocument();
+    });
+  });
+
+  describe("bidirectional S-curve path", () => {
+    it("uses custom path for bidirectional edges", () => {
+      render(
+        <RuleEdgeComponent
+          {...makeEdgeProps({
+            sourceX: 100,
+            sourceY: 0,
+            targetX: 100,
+            targetY: 300,
+            data: {
+              rules: [allowRule],
+              allowCount: 1,
+              blockCount: 0,
+              edgeOffset: -1,
+            },
+          })}
+        />,
+      );
+      const edge = screen.getByTestId("edge-edge-1");
+      const path = edge.getAttribute("data-path")!;
+      // Custom path starts with M and contains A (arc) commands
+      expect(path).toMatch(/^M /);
+      expect(path).toContain("A ");
+    });
+
+    it("handles upward bidirectional edges", () => {
+      render(
+        <RuleEdgeComponent
+          {...makeEdgeProps({
+            sourceX: 100,
+            sourceY: 300,
+            targetX: 100,
+            targetY: 0,
+            data: {
+              rules: [allowRule],
+              allowCount: 1,
+              blockCount: 0,
+              edgeOffset: 1,
+            },
+          })}
+        />,
+      );
+      const edge = screen.getByTestId("edge-edge-1");
+      expect(edge.getAttribute("data-path")).toContain("A ");
+    });
+
+    it("uses getSmoothStepPath for non-bidirectional edges", () => {
+      render(
+        <RuleEdgeComponent
+          {...makeEdgeProps({
+            data: {
+              rules: [allowRule],
+              allowCount: 1,
+              blockCount: 0,
+              edgeOffset: 0,
+            },
+          })}
+        />,
+      );
+      const edge = screen.getByTestId("edge-edge-1");
+      // Mock getSmoothStepPath returns "M0,0 L100,100"
+      expect(edge).toHaveAttribute("data-path", "M0,0 L100,100");
+    });
+
+    it("adjusts Y coordinates for upward non-bidirectional edges", () => {
+      render(
+        <RuleEdgeComponent
+          {...makeEdgeProps({
+            sourceX: 100,
+            sourceY: 300,
+            targetX: 100,
+            targetY: 0,
+            data: {
+              rules: [allowRule],
+              allowCount: 1,
+              blockCount: 0,
+              edgeOffset: 0,
+            },
+          })}
+        />,
+      );
+      // getSmoothStepPath mock still returns fixed value; just ensure it renders
+      expect(screen.getByTestId("edge-edge-1")).toBeInTheDocument();
+    });
+  });
+
   describe("handles undefined data gracefully", () => {
     it("defaults to amber color and empty rules when data is undefined", () => {
       render(
