@@ -1,0 +1,53 @@
+FROM node:22-alpine AS frontend-build
+
+WORKDIR /app/frontend
+
+COPY frontend/package.json frontend/package-lock.json ./
+
+RUN npm ci
+
+COPY frontend/ ./
+
+RUN npm run build
+
+
+FROM python:3.13-slim AS backend-build
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+WORKDIR /app/backend
+
+ENV UV_COMPILE_BYTECODE=1
+ENV UV_LINK_MODE=copy
+
+COPY backend/pyproject.toml backend/uv.lock ./
+
+RUN uv sync --frozen --no-dev --no-install-project
+
+COPY backend/app ./app
+
+
+FROM python:3.13-slim AS runtime
+
+WORKDIR /app/backend
+
+ENV PATH="/app/backend/.venv/bin:$PATH"
+ENV PYTHONUNBUFFERED=1
+ENV ANALYSER_DB_PATH=/data/analyser.db
+ENV FRONTEND_DIST_DIR=/app/frontend/dist
+
+RUN groupadd --system appuser && useradd --system --gid appuser --create-home appuser
+
+COPY --from=backend-build --chown=appuser:appuser /app/backend/.venv /app/backend/.venv
+COPY --from=backend-build --chown=appuser:appuser /app/backend/app /app/backend/app
+COPY --from=frontend-build --chown=appuser:appuser /app/frontend/dist /app/frontend/dist
+
+RUN mkdir -p /data && chown appuser:appuser /data
+
+USER appuser
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/health', timeout=3).read()"]
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]

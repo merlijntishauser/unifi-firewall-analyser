@@ -1,6 +1,6 @@
-import pytest
 from unittest.mock import AsyncMock, patch
 
+import pytest
 from httpx import AsyncClient
 
 from app.database import init_db
@@ -18,11 +18,14 @@ def _use_test_db(tmp_path, monkeypatch):
 
 @pytest.mark.anyio
 async def test_analyze_requires_ai_config(client: AsyncClient) -> None:
-    resp = await client.post("/api/analyze", json={
-        "source_zone_name": "LAN",
-        "destination_zone_name": "WAN",
-        "rules": [],
-    })
+    resp = await client.post(
+        "/api/analyze",
+        json={
+            "source_zone_name": "LAN",
+            "destination_zone_name": "WAN",
+            "rules": [],
+        },
+    )
     assert resp.status_code == 400
 
 
@@ -36,14 +39,23 @@ async def test_analyze_returns_findings(client: AsyncClient, _use_test_db) -> No
     ]
 
     with patch("app.routers.analyze.analyze_with_ai", new_callable=AsyncMock, return_value=mock_findings):
-        resp = await client.post("/api/analyze", json={
-            "source_zone_name": "LAN",
-            "destination_zone_name": "WAN",
-            "rules": [{
-                "id": "r1", "name": "Test", "enabled": True, "action": "ALLOW",
-                "source_zone_id": "z1", "destination_zone_id": "z2",
-            }],
-        })
+        resp = await client.post(
+            "/api/analyze",
+            json={
+                "source_zone_name": "LAN",
+                "destination_zone_name": "WAN",
+                "rules": [
+                    {
+                        "id": "r1",
+                        "name": "Test",
+                        "enabled": True,
+                        "action": "ALLOW",
+                        "source_zone_id": "z1",
+                        "destination_zone_id": "z2",
+                    }
+                ],
+            },
+        )
 
     assert resp.status_code == 200
     data = resp.json()
@@ -58,11 +70,14 @@ async def test_analyze_returns_empty_on_no_findings(client: AsyncClient, _use_te
     save_ai_config(db_path, "http://test.com/v1", "key", "model", "openai")
 
     with patch("app.routers.analyze.analyze_with_ai", new_callable=AsyncMock, return_value=[]):
-        resp = await client.post("/api/analyze", json={
-            "source_zone_name": "LAN",
-            "destination_zone_name": "WAN",
-            "rules": [],
-        })
+        resp = await client.post(
+            "/api/analyze",
+            json={
+                "source_zone_name": "LAN",
+                "destination_zone_name": "WAN",
+                "rules": [],
+            },
+        )
 
     assert resp.status_code == 200
     assert resp.json()["findings"] == []

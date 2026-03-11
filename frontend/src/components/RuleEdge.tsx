@@ -35,11 +35,11 @@ export type RuleEdge = Edge<RuleEdgeData, "rule">;
 
 const MAX_VISIBLE = 3;
 
-const DATA_DEFAULTS: Omit<RuleEdgeData, "onLabelClick"> = {
+const DATA_DEFAULTS = {
   rules: [],
   allowCount: 0,
   blockCount: 0,
-};
+} satisfies Pick<RuleEdgeData, "rules" | "allowCount" | "blockCount">;
 
 function resolveData(data: RuleEdgeData | undefined): RuleEdgeData {
   if (!data) return { ...DATA_DEFAULTS };

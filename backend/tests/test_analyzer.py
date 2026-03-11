@@ -1,12 +1,12 @@
 """Tests for static firewall rule analyzer."""
 
 from app.models import Rule
-from app.services.analyzer import Finding, analyze_zone_pair, compute_grade
+from app.services.analyzer import analyze_zone_pair, compute_grade
 
 
 def _rule(
     *,
-    id: str = "r1",
+    rule_id: str = "r1",
     name: str = "Test Rule",
     enabled: bool = True,
     action: str = "ALLOW",
@@ -19,7 +19,7 @@ def _rule(
     predefined: bool = False,
 ) -> Rule:
     return Rule(
-        id=id,
+        id=rule_id,
         name=name,
         enabled=enabled,
         action=action,
@@ -106,8 +106,8 @@ class TestAnalyzeZonePair:
 
     def test_shadowed_rule(self) -> None:
         rules = [
-            _rule(id="r1", action="ALLOW", protocol="all", port_ranges=[], index=100),
-            _rule(id="r2", action="ALLOW", protocol="tcp", port_ranges=["80"], index=200),
+            _rule(rule_id="r1", action="ALLOW", protocol="all", port_ranges=[], index=100),
+            _rule(rule_id="r2", action="ALLOW", protocol="tcp", port_ranges=["80"], index=200),
         ]
         result = analyze_zone_pair(rules, "LAN", "WAN")
         shadowed = [f for f in result.findings if f.id == "shadowed-rule"]
@@ -116,8 +116,8 @@ class TestAnalyzeZonePair:
 
     def test_no_shadow_when_different_actions(self) -> None:
         rules = [
-            _rule(id="r1", action="ALLOW", protocol="all", port_ranges=[], index=100),
-            _rule(id="r2", action="BLOCK", protocol="tcp", port_ranges=["80"], index=200),
+            _rule(rule_id="r1", action="ALLOW", protocol="all", port_ranges=[], index=100),
+            _rule(rule_id="r2", action="BLOCK", protocol="tcp", port_ranges=["80"], index=200),
         ]
         result = analyze_zone_pair(rules, "LAN", "WAN")
         assert not any(f.id == "shadowed-rule" for f in result.findings)
@@ -146,7 +146,7 @@ class TestAnalyzeZonePair:
     def test_score_clamped_to_zero(self) -> None:
         # Many high findings should not go below 0
         rules = [
-            _rule(id=f"r{i}", protocol="all", port_ranges=[], index=i)
+            _rule(rule_id=f"r{i}", protocol="all", port_ranges=[], index=i)
             for i in range(20)
         ]
         result = analyze_zone_pair(rules, "External", "Internal")
@@ -169,8 +169,8 @@ class TestAnalyzeZonePair:
     def test_no_shadow_when_different_port_ranges(self) -> None:
         """Rules with same action/protocol but different port ranges are not shadowed."""
         rules = [
-            _rule(id="r1", action="ALLOW", protocol="tcp", port_ranges=["80"], index=100),
-            _rule(id="r2", action="ALLOW", protocol="tcp", port_ranges=["443"], index=200),
+            _rule(rule_id="r1", action="ALLOW", protocol="tcp", port_ranges=["80"], index=100),
+            _rule(rule_id="r2", action="ALLOW", protocol="tcp", port_ranges=["443"], index=200),
         ]
         result = analyze_zone_pair(rules, "LAN", "WAN")
         assert not any(f.id == "shadowed-rule" for f in result.findings)
@@ -178,8 +178,15 @@ class TestAnalyzeZonePair:
     def test_no_shadow_when_earlier_has_ip_ranges(self) -> None:
         """Earlier rule with ip_ranges does not shadow a later rule."""
         rules = [
-            _rule(id="r1", action="ALLOW", protocol="all", port_ranges=[], ip_ranges=["10.0.0.0/8"], index=100),
-            _rule(id="r2", action="ALLOW", protocol="tcp", port_ranges=["80"], index=200),
+            _rule(
+                rule_id="r1",
+                action="ALLOW",
+                protocol="all",
+                port_ranges=[],
+                ip_ranges=["10.0.0.0/8"],
+                index=100,
+            ),
+            _rule(rule_id="r2", action="ALLOW", protocol="tcp", port_ranges=["80"], index=200),
         ]
         result = analyze_zone_pair(rules, "LAN", "WAN")
         assert not any(f.id == "shadowed-rule" for f in result.findings)

@@ -1,9 +1,13 @@
 """SQLite database setup for AI configuration and analysis caching."""
 
+import os
 import sqlite3
 from pathlib import Path
 
-DEFAULT_DB_PATH = Path("data/analyser.db")
+# Keep both spellings for convenience in container environments.
+DEFAULT_DB_PATH = Path(
+    os.environ.get("ANALYSER_DB_PATH", os.environ.get("ANALYZER_DB_PATH", "data/analyser.db"))
+)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS ai_config (
