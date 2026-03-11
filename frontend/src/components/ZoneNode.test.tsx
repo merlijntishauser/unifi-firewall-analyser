@@ -6,8 +6,8 @@ import type { ZoneNode } from "./ZoneNode";
 
 // Mock @xyflow/react Handle component and Position enum
 vi.mock("@xyflow/react", () => ({
-  Handle: ({ type, position, id }: { type: string; position: string; id?: string }) => (
-    <div data-testid={`handle-${id ?? type}`} data-position={position} data-type={type} />
+  Handle: ({ type, position }: { type: string; position: string }) => (
+    <div data-testid={`handle-${type}`} data-position={position} />
   ),
   Position: {
     Top: "top",
@@ -80,11 +80,8 @@ describe("ZoneNodeComponent", () => {
           })}
         />,
       );
-      // 5 source + 5 target handles (indices 0-4)
-      for (let i = 0; i < 5; i++) {
-        expect(screen.getByTestId(`handle-target-${i}`)).toBeInTheDocument();
-        expect(screen.getByTestId(`handle-source-${i}`)).toBeInTheDocument();
-      }
+      expect(screen.getByTestId("handle-target")).toBeInTheDocument();
+      expect(screen.getByTestId("handle-source")).toBeInTheDocument();
     });
   });
 

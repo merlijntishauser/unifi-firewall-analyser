@@ -8,6 +8,7 @@ import {
   type Edge,
 } from "@xyflow/react";
 import { getActionColor, getEdgeColor } from "../utils/edgeColor";
+import { NODE_HEIGHT } from "../utils/layout";
 
 export interface RuleSummary {
   name: string;
@@ -22,6 +23,8 @@ export interface RuleEdgeData {
   allowCount: number;
   blockCount: number;
   edgeOffset?: number;
+  sourceXOffset?: number;
+  targetXOffset?: number;
   sourceZoneName?: string;
   destZoneName?: string;
   onLabelClick?: () => void;
@@ -123,6 +126,7 @@ export default function RuleEdgeComponent({
   selected,
   markerEnd,
 }: EdgeProps<RuleEdge>) {
+  const resolved = resolveData(data);
   const {
     rules,
     allowCount,
@@ -131,18 +135,25 @@ export default function RuleEdgeComponent({
     edgeOffset = 0,
     sourceZoneName,
     destZoneName,
-  } = resolveData(data);
+  } = resolved;
+  const srcOff = resolved.sourceXOffset ?? 0;
+  const tgtOff = resolved.targetXOffset ?? 0;
   const color = getEdgeColor(allowCount, blockCount);
   const [isPinned, setIsPinned] = useState(false);
 
   const isUpward = sourceY > targetY;
 
+  // For upward edges, remap to top-of-source → bottom-of-target so the
+  // path never exits and enters on the same side of a node.
+  const sy = isUpward ? sourceY - NODE_HEIGHT : sourceY;
+  const ty = isUpward ? targetY + NODE_HEIGHT : targetY;
+
   const [computedPath, labelPosX, labelPosY] = getSmoothStepPath({
-    sourceX,
-    sourceY,
+    sourceX: sourceX + srcOff,
+    sourceY: sy,
     sourcePosition: isUpward ? Position.Top : sourcePosition,
-    targetX,
-    targetY,
+    targetX: targetX + tgtOff,
+    targetY: ty,
     targetPosition: isUpward ? Position.Bottom : targetPosition,
     borderRadius: 16,
   });

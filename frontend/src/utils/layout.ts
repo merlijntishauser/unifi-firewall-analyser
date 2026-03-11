@@ -1,23 +1,22 @@
 import dagre from "@dagrejs/dagre";
 import type { Node, Edge } from "@xyflow/react";
 
-const NODE_WIDTH = 220;
-const NODE_HEIGHT = 100;
-const HANDLE_SLOTS = 5; // must match HANDLE_PCTS in ZoneNode
+export const NODE_WIDTH = 220;
+export const NODE_HEIGHT = 100;
+
+/** Usable horizontal spread on each side of the node (pixels from center). */
+const SPREAD_HALF = NODE_WIDTH * 0.35; // 77px each side → 154px total
 
 /**
- * Pick a handle index (0..HANDLE_SLOTS-1) for each edge so that edges
- * fan out across the node instead of overlapping on one anchor point.
+ * Compute pixel offsets so outgoing/incoming edges fan out across the
+ * bottom/top of each node instead of overlapping on the center handle.
  *
- * Outgoing edges from a node are sorted by target-x and spread across
- * source-0 .. source-4. Incoming edges are sorted by source-x and
- * spread across target-0 .. target-4.
+ * Returns maps from edge-id to pixel offset (relative to node center).
  */
-function assignHandles(
+function computeEdgeOffsets(
   edges: Edge[],
   posMap: Map<string, { x: number; y: number }>,
-): Edge[] {
-  // Group edges by node: outgoing (source) and incoming (target)
+): { sourceOffsets: Map<string, number>; targetOffsets: Map<string, number> } {
   const outgoing = new Map<string, Edge[]>();
   const incoming = new Map<string, Edge[]>();
 
@@ -28,44 +27,32 @@ function assignHandles(
     incoming.get(edge.target)!.push(edge);
   }
 
-  const sourceHandles = new Map<string, string>();
-  const targetHandles = new Map<string, string>();
+  const sourceOffsets = new Map<string, number>();
+  const targetOffsets = new Map<string, number>();
 
-  // Assign source handles: sort outgoing by target x, spread evenly
   for (const [, nodeEdges] of outgoing) {
     const sorted = [...nodeEdges].sort(
       (a, b) => posMap.get(a.target)!.x - posMap.get(b.target)!.x,
     );
     const n = sorted.length;
     for (let i = 0; i < n; i++) {
-      const slot =
-        n === 1
-          ? Math.floor(HANDLE_SLOTS / 2)
-          : Math.round((i * (HANDLE_SLOTS - 1)) / (n - 1));
-      sourceHandles.set(sorted[i].id, `source-${slot}`);
+      const offset = n === 1 ? 0 : -SPREAD_HALF + (i * 2 * SPREAD_HALF) / (n - 1);
+      sourceOffsets.set(sorted[i].id, offset);
     }
   }
 
-  // Assign target handles: sort incoming by source x, spread evenly
   for (const [, nodeEdges] of incoming) {
     const sorted = [...nodeEdges].sort(
       (a, b) => posMap.get(a.source)!.x - posMap.get(b.source)!.x,
     );
     const n = sorted.length;
     for (let i = 0; i < n; i++) {
-      const slot =
-        n === 1
-          ? Math.floor(HANDLE_SLOTS / 2)
-          : Math.round((i * (HANDLE_SLOTS - 1)) / (n - 1));
-      targetHandles.set(sorted[i].id, `target-${slot}`);
+      const offset = n === 1 ? 0 : -SPREAD_HALF + (i * 2 * SPREAD_HALF) / (n - 1);
+      targetOffsets.set(sorted[i].id, offset);
     }
   }
 
-  return edges.map((edge) => ({
-    ...edge,
-    sourceHandle: sourceHandles.get(edge.id)!,
-    targetHandle: targetHandles.get(edge.id)!,
-  }));
+  return { sourceOffsets, targetOffsets };
 }
 
 export function getLayoutedElements(
@@ -92,7 +79,16 @@ export function getLayoutedElements(
   });
 
   const posMap = new Map(layoutedNodes.map((n) => [n.id, n.position]));
-  const layoutedEdges = assignHandles(edges, posMap);
+  const { sourceOffsets, targetOffsets } = computeEdgeOffsets(edges, posMap);
+
+  const layoutedEdges = edges.map((edge) => ({
+    ...edge,
+    data: {
+      ...edge.data,
+      sourceXOffset: sourceOffsets.get(edge.id) ?? 0,
+      targetXOffset: targetOffsets.get(edge.id) ?? 0,
+    },
+  }));
 
   return { nodes: layoutedNodes, edges: layoutedEdges };
 }

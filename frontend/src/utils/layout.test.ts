@@ -7,7 +7,6 @@ vi.mock("@dagrejs/dagre", () => {
     private nodes: Map<string, Record<string, number>> = new Map();
     private edges: Array<{ source: string; target: string }> = [];
     private graphConfig: Record<string, unknown> = {};
-    private counter = 0;
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     constructor(opts?: Record<string, unknown>) {}
@@ -35,10 +34,7 @@ vi.mock("@dagrejs/dagre", () => {
     }
 
     layoutNodes() {
-      // Simple top-to-bottom layout: position nodes based on topological order
       const rank = new Map<string, number>();
-
-      // Assign ranks based on edges (simple BFS from sources)
       for (const [id] of this.nodes) {
         if (!rank.has(id)) rank.set(id, 0);
       }
@@ -47,13 +43,11 @@ vi.mock("@dagrejs/dagre", () => {
         rank.set(edge.target, Math.max(rank.get(edge.target) ?? 0, srcRank + 1));
       }
 
-      // Sort by rank and assign positions
+      // Group by rank and spread horizontally
+      const rankGroups = new Map<number, string[]>();
       const sorted = [...this.nodes.keys()].sort(
         (a, b) => (rank.get(a) ?? 0) - (rank.get(b) ?? 0),
       );
-
-      // Group by rank and spread horizontally
-      const rankGroups = new Map<number, string[]>();
       for (const id of sorted) {
         const r = rank.get(id) ?? 0;
         if (!rankGroups.has(r)) rankGroups.set(r, []);
@@ -82,7 +76,7 @@ vi.mock("@dagrejs/dagre", () => {
 import { getLayoutedElements } from "./layout";
 
 describe("getLayoutedElements", () => {
-  it("returns positioned nodes and edges with handles", () => {
+  it("returns positioned nodes and edges with offsets", () => {
     const nodes: Node[] = [
       { id: "a", position: { x: 0, y: 0 }, data: {} },
       { id: "b", position: { x: 0, y: 0 }, data: {} },
@@ -113,7 +107,6 @@ describe("getLayoutedElements", () => {
     const nodeA = result.nodes.find((n) => n.id === "a")!;
     const nodeB = result.nodes.find((n) => n.id === "b")!;
 
-    // With TB layout, nodeA should be above nodeB (smaller y)
     expect(nodeA.position.y).toBeLessThan(nodeB.position.y);
   });
 
@@ -148,29 +141,21 @@ describe("getLayoutedElements", () => {
     expect(result.nodes[0].id).toBe("a");
   });
 
-  it("spreads target handles when a node has multiple incoming edges", () => {
-    // a and b are at the same rank (both sources), c is target of both
-    // a at x~0, b at x~320 → c gets two incoming edges from different sides
+  it("sets zero offsets for a single edge per node", () => {
     const nodes: Node[] = [
       { id: "a", position: { x: 0, y: 0 }, data: {} },
       { id: "b", position: { x: 0, y: 0 }, data: {} },
-      { id: "c", position: { x: 0, y: 0 }, data: {} },
     ];
-    const edges: Edge[] = [
-      { id: "e1", source: "a", target: "c" },
-      { id: "e2", source: "b", target: "c" },
-    ];
+    const edges: Edge[] = [{ id: "e1", source: "a", target: "b" }];
 
     const result = getLayoutedElements(nodes, edges);
-    const e1 = result.edges.find((e) => e.id === "e1")!;
-    const e2 = result.edges.find((e) => e.id === "e2")!;
+    const e1 = result.edges[0];
 
-    // Two incoming edges to c should use different target handles
-    expect(e1.targetHandle).not.toBe(e2.targetHandle);
+    expect(e1.data.sourceXOffset).toBe(0);
+    expect(e1.data.targetXOffset).toBe(0);
   });
 
-  it("spreads source handles when a node has multiple outgoing edges", () => {
-    // a connects to both b and c; b and c at same rank with different x
+  it("spreads source offsets when a node has multiple outgoing edges", () => {
     const nodes: Node[] = [
       { id: "a", position: { x: 0, y: 0 }, data: {} },
       { id: "b", position: { x: 0, y: 0 }, data: {} },
@@ -185,23 +170,29 @@ describe("getLayoutedElements", () => {
     const e1 = result.edges.find((e) => e.id === "e1")!;
     const e2 = result.edges.find((e) => e.id === "e2")!;
 
-    // Two outgoing edges from a should use different source handles
-    expect(e1.sourceHandle).not.toBe(e2.sourceHandle);
+    // Two outgoing edges from a → different source offsets
+    expect(e1.data.sourceXOffset).not.toBe(e2.data.sourceXOffset);
+    // Offsets should be symmetric around center
+    expect(e1.data.sourceXOffset).toBe(-e2.data.sourceXOffset);
   });
 
-  it("assigns center handle when node has a single connection", () => {
+  it("spreads target offsets when a node has multiple incoming edges", () => {
     const nodes: Node[] = [
       { id: "a", position: { x: 0, y: 0 }, data: {} },
       { id: "b", position: { x: 0, y: 0 }, data: {} },
+      { id: "c", position: { x: 0, y: 0 }, data: {} },
     ];
-    const edges: Edge[] = [{ id: "e1", source: "a", target: "b" }];
+    const edges: Edge[] = [
+      { id: "e1", source: "a", target: "c" },
+      { id: "e2", source: "b", target: "c" },
+    ];
 
     const result = getLayoutedElements(nodes, edges);
     const e1 = result.edges.find((e) => e.id === "e1")!;
+    const e2 = result.edges.find((e) => e.id === "e2")!;
 
-    // Single edge → center slot (index 2 of 5)
-    expect(e1.sourceHandle).toBe("source-2");
-    expect(e1.targetHandle).toBe("target-2");
+    // Two incoming edges to c → different target offsets
+    expect(e1.data.targetXOffset).not.toBe(e2.data.targetXOffset);
   });
 
   it("handles a three-node chain", () => {

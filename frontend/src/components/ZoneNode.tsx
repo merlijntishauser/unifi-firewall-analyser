@@ -20,9 +20,6 @@ const ZONE_COLORS: Record<string, { accent: string; text: string }> = {
   DMZ: { accent: "border-l-orange-500", text: "text-orange-400" },
 };
 
-/** Percentage positions for edge connection handles (5 slots per side). */
-const HANDLE_PCTS = [15, 30, 45, 60, 75];
-
 const DEFAULT_COLORS = {
   accent: "border-l-gray-500",
   text: "text-gray-400",
@@ -41,9 +38,7 @@ export default function ZoneNodeComponent({ data }: NodeProps<ZoneNode>) {
     <div
       className={`rounded-lg border border-gray-200 dark:border-noc-border ${colors.accent} border-l-[3px] bg-white dark:bg-noc-raised shadow-md dark:shadow-lg min-w-[200px]`}
     >
-      {HANDLE_PCTS.map((pct, i) => (
-        <Handle key={`t${i}`} type="target" position={Position.Top} id={`target-${i}`} style={{ left: `${pct}%` }} className="!bg-gray-400 dark:!bg-noc-text-dim" />
-      ))}
+      <Handle type="target" position={Position.Top} className="!bg-gray-400 dark:!bg-noc-text-dim" />
 
       <div className="px-3 py-2">
         <div className="flex items-center justify-between gap-2">
@@ -88,9 +83,7 @@ export default function ZoneNodeComponent({ data }: NodeProps<ZoneNode>) {
         )}
       </div>
 
-      {HANDLE_PCTS.map((pct, i) => (
-        <Handle key={`s${i}`} type="source" position={Position.Bottom} id={`source-${i}`} style={{ left: `${pct}%` }} className="!bg-gray-400 dark:!bg-noc-text-dim" />
-      ))}
+      <Handle type="source" position={Position.Bottom} className="!bg-gray-400 dark:!bg-noc-text-dim" />
     </div>
   );
 }
