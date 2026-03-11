@@ -73,16 +73,22 @@ function App() {
   const handleCellClick = useCallback((pair: ZonePair) => {
     setFocusZoneIds([pair.source_zone_id, pair.destination_zone_id]);
     setSelectedPair(pair);
+    history.pushState({ view: "graph" }, "");
   }, []);
 
   const handleZoneClick = useCallback((zoneId: string) => {
     setFocusZoneIds([zoneId]);
     setSelectedPair(null);
+    history.pushState({ view: "graph" }, "");
   }, []);
 
-  const handleBack = useCallback(() => {
-    setFocusZoneIds(null);
-    setSelectedPair(null);
+  useEffect(() => {
+    const onPopState = () => {
+      setFocusZoneIds(null);
+      setSelectedPair(null);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
   if (authLoading) {
@@ -122,7 +128,7 @@ function App() {
           {focusZoneIds ? (
             <>
               <button
-                onClick={handleBack}
+                onClick={() => history.back()}
                 className="absolute top-3 left-3 z-10 rounded-lg bg-white dark:bg-noc-surface border border-gray-300 dark:border-noc-border px-3 py-1.5 text-sm text-gray-700 dark:text-noc-text-secondary hover:bg-gray-100 dark:hover:bg-noc-raised hover:dark:text-noc-text shadow-sm dark:shadow-lg cursor-pointer transition-all"
               >
                 Back to matrix
