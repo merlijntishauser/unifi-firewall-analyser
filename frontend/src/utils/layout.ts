@@ -13,10 +13,19 @@ const SPREAD_HALF = NODE_WIDTH * 0.35; // 77px each side → 154px total
  *
  * Returns maps from edge-id to pixel offset (relative to node center).
  */
+const BASE_ROUTE_OFFSET = 20;
+const ROUTE_OFFSET_STEP = 8;
+
+interface EdgeOffsets {
+  sourceOffsets: Map<string, number>;
+  targetOffsets: Map<string, number>;
+  routeOffsets: Map<string, number>;
+}
+
 function computeEdgeOffsets(
   edges: Edge[],
   posMap: Map<string, { x: number; y: number }>,
-): { sourceOffsets: Map<string, number>; targetOffsets: Map<string, number> } {
+): EdgeOffsets {
   const outgoing = new Map<string, Edge[]>();
   const incoming = new Map<string, Edge[]>();
 
@@ -29,6 +38,7 @@ function computeEdgeOffsets(
 
   const sourceOffsets = new Map<string, number>();
   const targetOffsets = new Map<string, number>();
+  const routeOffsets = new Map<string, number>();
 
   for (const [, nodeEdges] of outgoing) {
     const sorted = [...nodeEdges].sort(
@@ -38,6 +48,7 @@ function computeEdgeOffsets(
     for (let i = 0; i < n; i++) {
       const offset = n === 1 ? 0 : -SPREAD_HALF + (i * 2 * SPREAD_HALF) / (n - 1);
       sourceOffsets.set(sorted[i].id, offset);
+      routeOffsets.set(sorted[i].id, BASE_ROUTE_OFFSET + i * ROUTE_OFFSET_STEP);
     }
   }
 
@@ -52,7 +63,7 @@ function computeEdgeOffsets(
     }
   }
 
-  return { sourceOffsets, targetOffsets };
+  return { sourceOffsets, targetOffsets, routeOffsets };
 }
 
 export function getLayoutedElements(
@@ -79,7 +90,7 @@ export function getLayoutedElements(
   });
 
   const posMap = new Map(layoutedNodes.map((n) => [n.id, n.position]));
-  const { sourceOffsets, targetOffsets } = computeEdgeOffsets(edges, posMap);
+  const { sourceOffsets, targetOffsets, routeOffsets } = computeEdgeOffsets(edges, posMap);
 
   const layoutedEdges = edges.map((edge) => ({
     ...edge,
@@ -87,6 +98,7 @@ export function getLayoutedElements(
       ...edge.data,
       sourceXOffset: sourceOffsets.get(edge.id) ?? 0,
       targetXOffset: targetOffsets.get(edge.id) ?? 0,
+      routeOffset: routeOffsets.get(edge.id) ?? BASE_ROUTE_OFFSET,
     },
   }));
 
