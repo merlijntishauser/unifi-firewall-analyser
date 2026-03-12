@@ -1,7 +1,10 @@
+from unittest.mock import patch
+
 import pytest
 from httpx import AsyncClient
 
 from app.config import set_runtime_credentials
+from app.services.firewall_writer import WriteError
 
 
 def _login() -> None:
@@ -129,3 +132,68 @@ async def test_zone_pairs_counts_are_correct(client: AsyncClient) -> None:
         )
         assert pair["allow_count"] == expected_allow
         assert pair["block_count"] == expected_block
+
+
+@pytest.mark.anyio
+async def test_toggle_requires_credentials(client: AsyncClient) -> None:
+    resp = await client.patch("/api/rules/rule-1/toggle", json={"enabled": False})
+    assert resp.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_toggle_calls_writer(client: AsyncClient) -> None:
+    _login()
+    with patch("app.routers.rules.toggle_policy") as mock_toggle:
+        resp = await client.patch("/api/rules/rule-1/toggle", json={"enabled": False})
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok"}
+    mock_toggle.assert_called_once()
+    call_kwargs = mock_toggle.call_args
+    assert call_kwargs[0][1] == "rule-1"
+    assert call_kwargs[1]["enabled"] is False
+
+
+@pytest.mark.anyio
+async def test_toggle_returns_502_on_write_error(client: AsyncClient) -> None:
+    _login()
+    with patch("app.routers.rules.toggle_policy", side_effect=WriteError("controller error")):
+        resp = await client.patch("/api/rules/rule-1/toggle", json={"enabled": True})
+    assert resp.status_code == 502
+    assert "controller error" in resp.json()["detail"]
+
+
+@pytest.mark.anyio
+async def test_swap_order_requires_credentials(client: AsyncClient) -> None:
+    resp = await client.put(
+        "/api/rules/reorder",
+        json={"policy_id_a": "rule-1", "policy_id_b": "rule-2"},
+    )
+    assert resp.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_swap_order_calls_writer(client: AsyncClient) -> None:
+    _login()
+    with patch("app.routers.rules.swap_policy_order") as mock_swap:
+        resp = await client.put(
+            "/api/rules/reorder",
+            json={"policy_id_a": "rule-1", "policy_id_b": "rule-2"},
+        )
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok"}
+    mock_swap.assert_called_once()
+    args = mock_swap.call_args[0]
+    assert args[1] == "rule-1"
+    assert args[2] == "rule-2"
+
+
+@pytest.mark.anyio
+async def test_swap_order_returns_502_on_write_error(client: AsyncClient) -> None:
+    _login()
+    with patch("app.routers.rules.swap_policy_order", side_effect=WriteError("swap failed")):
+        resp = await client.put(
+            "/api/rules/reorder",
+            json={"policy_id_a": "rule-1", "policy_id_b": "rule-2"},
+        )
+    assert resp.status_code == 502
+    assert "swap failed" in resp.json()["detail"]
