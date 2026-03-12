@@ -476,3 +476,131 @@ class TestNoConnectionState:
         result = analyze_zone_pair(rules, "LAN", "DMZ")
         finding = next(f for f in result.findings if f.id == "no-connection-state")
         assert finding.severity == "high"
+
+
+class TestOverlappingAllowBlock:
+    def test_allow_then_narrower_block_flags_overlap(self) -> None:
+        rules = [
+            _rule(
+                rule_id="r1",
+                action="ALLOW",
+                protocol="tcp",
+                port_ranges=["1-1024"],
+                index=100,
+                connection_state_type="new",
+            ),
+            _rule(rule_id="r2", action="BLOCK", protocol="tcp", port_ranges=["80"], index=200),
+        ]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        overlapping = [f for f in result.findings if f.id == "overlapping-allow-block"]
+        assert len(overlapping) == 1
+        assert overlapping[0].rule_id == "r2"
+
+    def test_block_then_narrower_allow_flags_overlap(self) -> None:
+        rules = [
+            _rule(rule_id="r1", action="BLOCK", protocol="tcp", port_ranges=["80-443"], index=100),
+            _rule(
+                rule_id="r2",
+                action="ALLOW",
+                protocol="tcp",
+                port_ranges=["1-1024"],
+                index=200,
+                connection_state_type="new",
+            ),
+        ]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        assert any(f.id == "overlapping-allow-block" for f in result.findings)
+
+    def test_same_action_no_overlap(self) -> None:
+        rules = [
+            _rule(
+                rule_id="r1",
+                action="ALLOW",
+                protocol="tcp",
+                port_ranges=["1-1024"],
+                index=100,
+                connection_state_type="new",
+            ),
+            _rule(
+                rule_id="r2",
+                action="ALLOW",
+                protocol="tcp",
+                port_ranges=["80"],
+                index=200,
+                connection_state_type="new",
+            ),
+        ]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        assert not any(f.id == "overlapping-allow-block" for f in result.findings)
+
+    def test_different_protocols_no_overlap(self) -> None:
+        rules = [
+            _rule(
+                rule_id="r1",
+                action="ALLOW",
+                protocol="tcp",
+                port_ranges=["80"],
+                index=100,
+                connection_state_type="new",
+            ),
+            _rule(rule_id="r2", action="BLOCK", protocol="udp", port_ranges=["80"], index=200),
+        ]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        assert not any(f.id == "overlapping-allow-block" for f in result.findings)
+
+    def test_full_shadow_not_flagged_as_overlap(self) -> None:
+        rules = [
+            _rule(rule_id="r1", action="ALLOW", protocol="all", port_ranges=[], index=100),
+            _rule(rule_id="r2", action="BLOCK", protocol="tcp", port_ranges=["80"], index=200),
+        ]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        assert any(f.id == "shadowed-rule" for f in result.findings)
+        assert not any(f.id == "overlapping-allow-block" for f in result.findings)
+
+    def test_severity_is_medium(self) -> None:
+        rules = [
+            _rule(
+                rule_id="r1",
+                action="ALLOW",
+                protocol="tcp",
+                port_ranges=["1-1024"],
+                index=100,
+                connection_state_type="new",
+            ),
+            _rule(rule_id="r2", action="BLOCK", protocol="tcp", port_ranges=["80"], index=200),
+        ]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        finding = next(f for f in result.findings if f.id == "overlapping-allow-block")
+        assert finding.severity == "medium"
+
+    def test_no_port_constraint_means_overlap(self) -> None:
+        """When one rule has ports and the other has none, they overlap (no port = all ports)."""
+        rules = [
+            _rule(
+                rule_id="r1",
+                action="ALLOW",
+                protocol="tcp",
+                port_ranges=["80"],
+                index=100,
+                connection_state_type="new",
+            ),
+            _rule(rule_id="r2", action="BLOCK", protocol="tcp", port_ranges=[], index=200),
+        ]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        assert any(f.id == "overlapping-allow-block" for f in result.findings)
+
+    def test_unparseable_port_constraint_no_overlap(self) -> None:
+        """When port constraints are unparseable, no overlap is flagged."""
+        rules = [
+            _rule(
+                rule_id="r1",
+                action="ALLOW",
+                protocol="tcp",
+                destination_port_group_members=["abc"],
+                index=100,
+                connection_state_type="new",
+            ),
+            _rule(rule_id="r2", action="BLOCK", protocol="tcp", port_ranges=["80"], index=200),
+        ]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        assert not any(f.id == "overlapping-allow-block" for f in result.findings)

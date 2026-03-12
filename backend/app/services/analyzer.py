@@ -9,6 +9,13 @@ import re
 from dataclasses import dataclass, field
 
 from app.models import Rule
+from app.services._rule_coverage import (
+    destination_port_constraints,
+    has_port_restrictions,
+    port_ranges_overlap,
+    protocol_covers,
+    rule_shadows,
+)
 
 DEDUCTIONS = {"high": 15, "medium": 8, "low": 2}
 
@@ -38,6 +45,7 @@ class AnalysisResult:
 
 
 def compute_grade(score: int) -> str:
+    """Map a numeric score (0-100) to a letter grade."""
     if score >= 90:
         return "A"
     if score >= 80:
@@ -55,14 +63,6 @@ def _is_external(zone_name: str) -> bool:
 
 def _is_internal(zone_name: str) -> bool:
     return zone_name.lower() in _INTERNAL_NAMES
-
-
-def _normalize_text(value: str) -> str:
-    return value.strip().lower()
-
-
-def _normalize_values(values: list[str]) -> tuple[str, ...]:
-    return tuple(sorted(_normalize_text(value) for value in values if value.strip()))
 
 
 def _tokenize(value: str) -> set[str]:
@@ -84,20 +84,8 @@ def _has_identity_restrictions(rule: Rule) -> bool:
     )
 
 
-def _destination_port_constraints(rule: Rule) -> list[str]:
-    return [*rule.port_ranges, *rule.destination_port_group_members]
-
-
-def _source_port_constraints(rule: Rule) -> list[str]:
-    return [*rule.source_port_ranges, *rule.source_port_group_members]
-
-
-def _has_port_restrictions(rule: Rule) -> bool:
-    return bool(_destination_port_constraints(rule) or _source_port_constraints(rule))
-
-
 def _is_allow_all_service(rule: Rule) -> bool:
-    return rule.protocol.lower() == "all" and not _has_port_restrictions(rule)
+    return rule.protocol.lower() == "all" and not has_port_restrictions(rule)
 
 
 def _is_return_traffic(rule: Rule) -> bool:
@@ -227,7 +215,7 @@ def _check_no_connection_state(rule: Rule) -> Finding | None:
 
 def _check_wide_port_range(rule: Rule) -> Finding | None:
     if rule.enabled and rule.action == "ALLOW":
-        for pr in _destination_port_constraints(rule):
+        for pr in destination_port_constraints(rule):
             if _port_range_width(pr) >= 1000:
                 return Finding(
                     id="wide-port-range",
@@ -241,94 +229,6 @@ def _check_wide_port_range(rule: Rule) -> Finding | None:
                     rule_id=rule.id,
                 )
     return None
-
-
-def _parse_port_constraint(port_range: str) -> tuple[int, int] | None:
-    normalized = port_range.strip()
-    if not normalized:
-        return None
-    if "-" not in normalized:
-        try:
-            port = int(normalized)
-        except ValueError:
-            return None
-        return (port, port)
-    low_raw, high_raw = normalized.split("-", 1)
-    try:
-        low = int(low_raw)
-        high = int(high_raw)
-    except ValueError:
-        return None
-    if low > high:
-        return None
-    return (low, high)
-
-
-def _ports_cover(earlier: list[str], later: list[str]) -> bool:
-    if not earlier:
-        return True
-    if not later:
-        return False
-
-    parsed_earlier = [_parse_port_constraint(port) for port in earlier]
-    parsed_later = [_parse_port_constraint(port) for port in later]
-    if any(port is None for port in parsed_earlier + parsed_later):
-        return False
-
-    earlier_ranges = [port for port in parsed_earlier if port is not None]
-    later_ranges = [port for port in parsed_later if port is not None]
-    return all(
-        any(
-            earlier_low <= later_low and later_high <= earlier_high
-            for earlier_low, earlier_high in earlier_ranges
-        )
-        for later_low, later_high in later_ranges
-    )
-
-
-def _constraint_list_covers(earlier: list[str], later: list[str]) -> bool:
-    earlier_values = _normalize_values(earlier)
-    later_values = _normalize_values(later)
-    if not earlier_values:
-        return True
-    if not later_values:
-        return False
-    return earlier_values == later_values
-
-
-def _constraint_value_covers(earlier: str, later: str) -> bool:
-    earlier_value = _normalize_text(earlier)
-    later_value = _normalize_text(later)
-    if not earlier_value:
-        return True
-    if not later_value:
-        return False
-    return earlier_value == later_value
-
-
-def _protocol_covers(earlier: Rule, later: Rule) -> bool:
-    earlier_protocol = earlier.protocol.lower()
-    later_protocol = later.protocol.lower()
-    return earlier_protocol == "all" or earlier_protocol == later_protocol
-
-
-def _rule_shadows(earlier: Rule, later: Rule) -> bool:
-    return (
-        _protocol_covers(earlier, later)
-        and _ports_cover(_destination_port_constraints(earlier), _destination_port_constraints(later))
-        and _ports_cover(_source_port_constraints(earlier), _source_port_constraints(later))
-        and _constraint_list_covers(earlier.ip_ranges, later.ip_ranges)
-        and _constraint_list_covers(earlier.source_ip_ranges, later.source_ip_ranges)
-        and _constraint_list_covers(earlier.source_mac_addresses, later.source_mac_addresses)
-        and _constraint_list_covers(earlier.destination_mac_addresses, later.destination_mac_addresses)
-        and _constraint_list_covers(earlier.source_address_group_members, later.source_address_group_members)
-        and _constraint_list_covers(earlier.destination_address_group_members, later.destination_address_group_members)
-        and _constraint_value_covers(earlier.source_network_id, later.source_network_id)
-        and _constraint_value_covers(earlier.destination_network_id, later.destination_network_id)
-        and _constraint_value_covers(earlier.connection_state_type, later.connection_state_type)
-        and _constraint_value_covers(earlier.schedule, later.schedule)
-        and _constraint_value_covers(earlier.match_ip_sec, later.match_ip_sec)
-    )
 
 
 def _check_predefined_rules(rules: list[Rule]) -> list[Finding]:
@@ -369,7 +269,6 @@ def _check_predefined_rules(rules: list[Rule]) -> list[Finding]:
     ]
 
 
-
 def _check_shadowed(rules: list[Rule]) -> list[Finding]:
     findings: list[Finding] = []
     enabled_rules = [r for r in rules if r.enabled]
@@ -379,7 +278,7 @@ def _check_shadowed(rules: list[Rule]) -> list[Finding]:
         if later.predefined:
             continue
         for earlier in sorted_rules[:i]:
-            if _rule_shadows(earlier, later):
+            if rule_shadows(earlier, later):
                 findings.append(
                     Finding(
                         id="shadowed-rule",
@@ -393,6 +292,43 @@ def _check_shadowed(rules: list[Rule]) -> list[Finding]:
                             f"Rule '{earlier.name}' at index {earlier.index} matches all traffic that "
                             f"'{later.name}' at index {later.index} would match. "
                             "The later rule will never execute."
+                        ),
+                        rule_id=later.id,
+                    )
+                )
+                break
+    return findings
+
+
+def _check_overlapping(rules: list[Rule]) -> list[Finding]:
+    """Flag rules with different actions but overlapping port ranges (not full shadows)."""
+    findings: list[Finding] = []
+    enabled_rules = [r for r in rules if r.enabled and not r.predefined]
+    sorted_rules = sorted(enabled_rules, key=lambda r: r.index)
+    for i, later in enumerate(sorted_rules):
+        for earlier in sorted_rules[:i]:
+            if earlier.action == later.action:
+                continue
+            if not protocol_covers(earlier, later):
+                continue
+            if rule_shadows(earlier, later):
+                continue
+            earlier_dst = destination_port_constraints(earlier)
+            later_dst = destination_port_constraints(later)
+            if port_ranges_overlap(earlier_dst, later_dst):
+                findings.append(
+                    Finding(
+                        id="overlapping-allow-block",
+                        severity="medium",
+                        title="Overlapping allow/block rules",
+                        description=(
+                            f"Rule '{later.name}' ({later.action}) partially overlaps with "
+                            f"earlier rule '{earlier.name}' ({earlier.action})."
+                        ),
+                        rationale=(
+                            f"These rules have different actions but overlapping port ranges. "
+                            f"The earlier rule ({earlier.action}) takes precedence for overlapping traffic. "
+                            f"Review whether the intended behavior requires this ordering."
                         ),
                         rule_id=later.id,
                     )
@@ -439,6 +375,7 @@ def analyze_zone_pair(
                     findings.append(finding)
 
         findings.extend(_check_shadowed(rules))
+        findings.extend(_check_overlapping(rules))
 
     score = 100
     for f in findings:
