@@ -50,6 +50,10 @@ MOCK_RAW_POLICIES = [
         "destination_zone_id": "zone-external",
         "protocol": "udp",
         "port_ranges": ["53"],
+        "destination": {
+            "port_group_id": "group-dns-ports",
+            "address_group_id": "group-dns-servers",
+        },
         "index": 210,
     },
     {
