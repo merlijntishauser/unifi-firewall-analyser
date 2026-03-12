@@ -559,6 +559,7 @@ describe("RulePanel", () => {
           dst_ip: "10.0.1.1",
           protocol: "udp",
           port: 53,
+          source_port: null,
         });
       });
     });
@@ -596,6 +597,7 @@ describe("RulePanel", () => {
           dst_ip: "10.0.1.1",
           protocol: "all",
           port: null,
+          source_port: null,
         });
       });
     });
@@ -1419,6 +1421,92 @@ describe("RulePanel", () => {
       const lowIdx = titles.indexOf("Low finding");
       expect(highIdx).toBeLessThan(medIdx);
       expect(medIdx).toBeLessThan(lowIdx);
+    });
+  });
+
+  describe("simulation assumptions", () => {
+    it("shows assumptions banner when present", async () => {
+      mockSimulate.mockResolvedValue({
+        source_zone_id: "z1", source_zone_name: "LAN",
+        destination_zone_id: "z2", destination_zone_name: "DMZ",
+        verdict: "ALLOW", matched_rule_id: "r1", matched_rule_name: "Allow",
+        default_policy_used: false,
+        evaluations: [],
+        assumptions: ["Rule has schedule 'office-hours'", "Rule requires source MAC aa:bb:cc:dd:ee:ff"],
+      });
+      renderPanel();
+      fireEvent.change(screen.getByPlaceholderText("Source IP"), { target: { value: "192.168.1.1" } });
+      fireEvent.change(screen.getByPlaceholderText("Destination IP"), { target: { value: "10.0.0.1" } });
+      fireEvent.click(screen.getByRole("button", { name: "Simulate" }));
+      await waitFor(() => expect(mockSimulate).toHaveBeenCalled());
+      expect(screen.getByText(/office-hours/)).toBeInTheDocument();
+      expect(screen.getByText(/MAC/)).toBeInTheDocument();
+    });
+
+    it("does not show assumptions banner when empty", async () => {
+      mockSimulate.mockResolvedValue({
+        source_zone_id: "z1", source_zone_name: "LAN",
+        destination_zone_id: "z2", destination_zone_name: "DMZ",
+        verdict: "ALLOW", matched_rule_id: "r1", matched_rule_name: "Allow",
+        default_policy_used: false,
+        evaluations: [],
+        assumptions: [],
+      });
+      renderPanel();
+      fireEvent.change(screen.getByPlaceholderText("Source IP"), { target: { value: "192.168.1.1" } });
+      fireEvent.change(screen.getByPlaceholderText("Destination IP"), { target: { value: "10.0.0.1" } });
+      fireEvent.click(screen.getByRole("button", { name: "Simulate" }));
+      await waitFor(() => expect(mockSimulate).toHaveBeenCalled());
+      expect(screen.queryByText("Assumptions")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("evaluation unresolvable constraints", () => {
+    it("shows warning for evaluation with unresolvable constraints", async () => {
+      mockSimulate.mockResolvedValue({
+        source_zone_id: "z1", source_zone_name: "LAN",
+        destination_zone_id: "z2", destination_zone_name: "DMZ",
+        verdict: "ALLOW", matched_rule_id: "r1", matched_rule_name: "Scheduled Allow",
+        default_policy_used: false,
+        evaluations: [{
+          rule_id: "r1", rule_name: "Scheduled Allow", matched: true,
+          reason: "Matched", skipped_disabled: false,
+          unresolvable_constraints: ["Rule has schedule 'office-hours'"],
+        }],
+        assumptions: ["Rule has schedule 'office-hours'"],
+      });
+      renderPanel();
+      fireEvent.change(screen.getByPlaceholderText("Source IP"), { target: { value: "192.168.1.1" } });
+      fireEvent.change(screen.getByPlaceholderText("Destination IP"), { target: { value: "10.0.0.1" } });
+      fireEvent.click(screen.getByRole("button", { name: "Simulate" }));
+      await waitFor(() => expect(mockSimulate).toHaveBeenCalled());
+      // Text appears in both the assumptions banner and the evaluation constraint warning
+      const matches = screen.getAllByText(/schedule 'office-hours'/);
+      expect(matches.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  describe("simulation form source port", () => {
+    it("renders source port field", () => {
+      renderPanel();
+      expect(screen.getByPlaceholderText("Src Port")).toBeInTheDocument();
+    });
+
+    it("sends source_port in simulation request", async () => {
+      mockSimulate.mockResolvedValue({
+        source_zone_id: "z1", source_zone_name: "LAN",
+        destination_zone_id: "z2", destination_zone_name: "DMZ",
+        verdict: "ALLOW", matched_rule_id: null, matched_rule_name: null,
+        default_policy_used: true, evaluations: [],
+      });
+      renderPanel();
+      fireEvent.change(screen.getByPlaceholderText("Source IP"), { target: { value: "192.168.1.1" } });
+      fireEvent.change(screen.getByPlaceholderText("Destination IP"), { target: { value: "10.0.0.1" } });
+      fireEvent.change(screen.getByPlaceholderText("Src Port"), { target: { value: "50000" } });
+      fireEvent.click(screen.getByRole("button", { name: "Simulate" }));
+      await waitFor(() => expect(mockSimulate).toHaveBeenCalledWith(
+        expect.objectContaining({ source_port: 50000 }),
+      ));
     });
   });
 });

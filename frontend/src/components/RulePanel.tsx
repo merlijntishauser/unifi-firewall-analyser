@@ -18,6 +18,7 @@ interface RulePanelState {
   dstIp: string;
   protocol: string;
   port: string;
+  sourcePort: string;
   simLoading: boolean;
   simResult: SimulateResponse | null;
   simError: string | null;
@@ -33,6 +34,7 @@ const initialState: RulePanelState = {
   dstIp: "",
   protocol: "TCP",
   port: "",
+  sourcePort: "",
   simLoading: false,
   simResult: null,
   simError: null,
@@ -469,6 +471,7 @@ function SimulationForm({
         dst_ip: state.dstIp,
         protocol: state.protocol === "Any" ? "all" : state.protocol.toLowerCase(),
         port: state.port ? Number(state.port) : null,
+        source_port: state.sourcePort ? Number(state.sourcePort) : null,
       });
       dispatch({ simResult: result });
     } catch (err) {
@@ -519,6 +522,15 @@ function SimulationForm({
           max={65535}
           className={inputClass}
         />
+        <input
+          type="number"
+          placeholder="Src Port"
+          value={state.sourcePort}
+          onChange={(e) => dispatch({ sourcePort: e.target.value })}
+          min={1}
+          max={65535}
+          className={inputClass}
+        />
       </div>
       <button
         type="submit"
@@ -542,6 +554,16 @@ function SimulationResult({ simResult, simError }: { simResult: SimulateResponse
 
       {simResult && (
         <div className="space-y-2 animate-fade-in">
+          {simResult.assumptions && simResult.assumptions.length > 0 && (
+            <div className="rounded-lg bg-amber-50 dark:bg-status-warning-dim border border-amber-200 dark:border-status-warning/20 p-2.5 text-xs text-amber-700 dark:text-status-warning">
+              <div className="font-semibold mb-1">Assumptions</div>
+              <ul className="list-disc list-inside space-y-0.5">
+                {simResult.assumptions.map((a) => (
+                  <li key={a}>{a}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div
             className={`rounded-lg border p-3 text-center font-display font-semibold text-sm ${verdictColor(simResult.verdict)}`}
           >
@@ -591,6 +613,16 @@ function SimulationResult({ simResult, simError }: { simResult: SimulateResponse
                   <div className="text-gray-400 dark:text-noc-text-dim mt-0.5">
                     {ev.reason}
                   </div>
+                  {ev.unresolvable_constraints && ev.unresolvable_constraints.length > 0 && (
+                    <div className="mt-1 space-y-0.5">
+                      {ev.unresolvable_constraints.map((c) => (
+                        <div key={c} className="flex items-center gap-1 text-amber-600 dark:text-status-warning text-[10px]">
+                          <span>&#9888;</span>
+                          <span>{c}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
