@@ -70,7 +70,7 @@ function App() {
       .catch(() => {});
   }, []);
 
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const saveTimerRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     api
@@ -132,7 +132,7 @@ function App() {
         next.add(zoneId);
       }
       clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = setTimeout(() => {
+      saveTimerRef.current = window.setTimeout(() => {
         api.saveZoneFilter([...next]).catch(() => {});
       }, 300);
       return { hiddenZoneIds: next };
