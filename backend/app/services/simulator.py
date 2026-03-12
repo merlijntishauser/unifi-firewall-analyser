@@ -94,12 +94,91 @@ def _port_matches(rule_port_ranges: list[str], packet_port: int | None) -> bool:
     return False
 
 
+def _ip_matches(rule_ip_ranges: list[str], packet_ip: str | None) -> bool:
+    """Check if a packet's IP matches any of the rule's IP ranges/CIDRs."""
+    if not rule_ip_ranges:
+        return True
+    if packet_ip is None:
+        return True  # No packet IP = treat as "any"
+    try:
+        addr = ipaddress.ip_address(packet_ip)
+    except ValueError:
+        return False
+    for ip_range in rule_ip_ranges:
+        try:
+            net = ipaddress.ip_network(ip_range, strict=False)
+            if addr in net:
+                return True
+        except ValueError:
+            continue
+    return False
+
+
+@dataclass
+class _MatchResult:
+    """Result of matching a single rule against packet constraints."""
+
+    all_match: bool
+    reasons: list[str]
+
+
+def _match_rule(
+    rule: Rule,
+    protocol: str | None,
+    port: int | None,
+    source_ip: str | None,
+    destination_ip: str | None,
+    source_port: int | None,
+) -> _MatchResult:
+    """Check all constraints for a single rule against packet parameters."""
+    checks: list[tuple[bool, str]] = []
+
+    checks.append(
+        (
+            _protocol_matches(rule.protocol, protocol),
+            f"protocol mismatch (rule={rule.protocol}, packet={protocol})",
+        )
+    )
+    dst_ports = [*rule.port_ranges, *rule.destination_port_group_members]
+    checks.append(
+        (
+            _port_matches(dst_ports, port),
+            f"port mismatch (rule ports={dst_ports or 'any'}, packet={port})",
+        )
+    )
+    src_port_ranges = [*rule.source_port_ranges, *rule.source_port_group_members]
+    checks.append(
+        (
+            True if source_port is None else _port_matches(src_port_ranges, source_port),
+            f"source port mismatch (packet={source_port})",
+        )
+    )
+    checks.append(
+        (
+            _ip_matches([*rule.ip_ranges, *rule.source_ip_ranges, *rule.source_address_group_members], source_ip),
+            f"source IP mismatch (packet={source_ip})",
+        )
+    )
+    checks.append(
+        (
+            _ip_matches(rule.destination_address_group_members, destination_ip),
+            f"destination IP mismatch (packet={destination_ip})",
+        )
+    )
+
+    reasons = [msg for ok, msg in checks if not ok]
+    return _MatchResult(all_match=not reasons, reasons=reasons)
+
+
 def evaluate_rules(
     rules: list[Rule],
     source_zone_id: str,
     destination_zone_id: str,
     protocol: str | None = None,
     port: int | None = None,
+    source_ip: str | None = None,
+    destination_ip: str | None = None,
+    source_port: int | None = None,
 ) -> SimulationResult:
     """Evaluate firewall rules for a simulated packet.
 
@@ -128,10 +207,9 @@ def evaluate_rules(
             )
             continue
 
-        proto_match = _protocol_matches(rule.protocol, protocol)
-        port_match = _port_matches(rule.port_ranges, port)
+        result = _match_rule(rule, protocol, port, source_ip, destination_ip, source_port)
 
-        if proto_match and port_match:
+        if result.all_match:
             evaluations.append(
                 RuleEvaluation(
                     rule_id=rule.id,
@@ -152,17 +230,12 @@ def evaluate_rules(
                 evaluations=evaluations,
             )
         else:
-            reasons: list[str] = []
-            if not proto_match:
-                reasons.append(f"protocol mismatch (rule={rule.protocol}, packet={protocol})")
-            if not port_match:
-                reasons.append(f"port mismatch (rule={rule.port_ranges}, packet={port})")
             evaluations.append(
                 RuleEvaluation(
                     rule_id=rule.id,
                     rule_name=rule.name,
                     matched=False,
-                    reason="No match: " + ", ".join(reasons),
+                    reason="No match: " + ", ".join(result.reasons),
                 )
             )
 
