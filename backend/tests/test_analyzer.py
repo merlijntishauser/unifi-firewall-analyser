@@ -25,9 +25,12 @@ def _rule(
     destination_network_id: str = "",
     source_port_group_members: list[str] | None = None,
     destination_port_group_members: list[str] | None = None,
+    source_address_group: str = "",
     source_address_group_members: list[str] | None = None,
+    destination_address_group: str = "",
     destination_address_group_members: list[str] | None = None,
     connection_state_type: str = "",
+    connection_logging: bool = False,
     schedule: str = "",
     match_ip_sec: str = "",
 ) -> Rule:
@@ -51,9 +54,12 @@ def _rule(
         destination_network_id=destination_network_id,
         source_port_group_members=source_port_group_members or [],
         destination_port_group_members=destination_port_group_members or [],
+        source_address_group=source_address_group,
         source_address_group_members=source_address_group_members or [],
+        destination_address_group=destination_address_group,
         destination_address_group_members=destination_address_group_members or [],
         connection_state_type=connection_state_type,
+        connection_logging=connection_logging,
         schedule=schedule,
         match_ip_sec=match_ip_sec,
     )
@@ -141,7 +147,7 @@ class TestAnalyzeZonePair:
         assert any(f.id == "disabled-block-rule" for f in result.findings)
 
     def test_enabled_block_rule_no_finding(self) -> None:
-        rules = [_rule(enabled=True, action="BLOCK")]
+        rules = [_rule(enabled=True, action="BLOCK", connection_logging=True)]
         result = analyze_zone_pair(rules, "LAN", "WAN")
         assert not any(f.id == "disabled-block-rule" for f in result.findings)
 
@@ -158,7 +164,7 @@ class TestAnalyzeZonePair:
     def test_no_shadow_when_different_actions(self) -> None:
         rules = [
             _rule(rule_id="r1", action="ALLOW", protocol="all", port_ranges=[], index=100),
-            _rule(rule_id="r2", action="BLOCK", protocol="tcp", port_ranges=["80"], index=200),
+            _rule(rule_id="r2", action="BLOCK", protocol="tcp", port_ranges=["80"], index=200, connection_logging=True),
         ]
         result = analyze_zone_pair(rules, "LAN", "WAN")
         assert any(f.id == "shadowed-rule" for f in result.findings)
@@ -462,7 +468,7 @@ class TestNoConnectionState:
         assert not any(f.id == "no-connection-state" for f in result.findings)
 
     def test_block_rule_not_flagged(self) -> None:
-        rules = [_rule(action="BLOCK", protocol="tcp", port_ranges=["80"])]
+        rules = [_rule(action="BLOCK", protocol="tcp", port_ranges=["80"], connection_logging=True)]
         result = analyze_zone_pair(rules, "LAN", "DMZ")
         assert not any(f.id == "no-connection-state" for f in result.findings)
 
@@ -489,7 +495,7 @@ class TestOverlappingAllowBlock:
                 index=100,
                 connection_state_type="new",
             ),
-            _rule(rule_id="r2", action="BLOCK", protocol="tcp", port_ranges=["80"], index=200),
+            _rule(rule_id="r2", action="BLOCK", protocol="tcp", port_ranges=["80"], index=200, connection_logging=True),
         ]
         result = analyze_zone_pair(rules, "LAN", "DMZ")
         overlapping = [f for f in result.findings if f.id == "overlapping-allow-block"]
@@ -498,7 +504,7 @@ class TestOverlappingAllowBlock:
 
     def test_block_then_narrower_allow_flags_overlap(self) -> None:
         rules = [
-            _rule(rule_id="r1", action="BLOCK", protocol="tcp", port_ranges=["80-443"], index=100),
+            _rule(rule_id="r1", action="BLOCK", protocol="tcp", port_ranges=["80-443"], index=100, connection_logging=True),
             _rule(
                 rule_id="r2",
                 action="ALLOW",
@@ -543,7 +549,7 @@ class TestOverlappingAllowBlock:
                 index=100,
                 connection_state_type="new",
             ),
-            _rule(rule_id="r2", action="BLOCK", protocol="udp", port_ranges=["80"], index=200),
+            _rule(rule_id="r2", action="BLOCK", protocol="udp", port_ranges=["80"], index=200, connection_logging=True),
         ]
         result = analyze_zone_pair(rules, "LAN", "DMZ")
         assert not any(f.id == "overlapping-allow-block" for f in result.findings)
@@ -551,7 +557,7 @@ class TestOverlappingAllowBlock:
     def test_full_shadow_not_flagged_as_overlap(self) -> None:
         rules = [
             _rule(rule_id="r1", action="ALLOW", protocol="all", port_ranges=[], index=100),
-            _rule(rule_id="r2", action="BLOCK", protocol="tcp", port_ranges=["80"], index=200),
+            _rule(rule_id="r2", action="BLOCK", protocol="tcp", port_ranges=["80"], index=200, connection_logging=True),
         ]
         result = analyze_zone_pair(rules, "LAN", "DMZ")
         assert any(f.id == "shadowed-rule" for f in result.findings)
@@ -567,7 +573,7 @@ class TestOverlappingAllowBlock:
                 index=100,
                 connection_state_type="new",
             ),
-            _rule(rule_id="r2", action="BLOCK", protocol="tcp", port_ranges=["80"], index=200),
+            _rule(rule_id="r2", action="BLOCK", protocol="tcp", port_ranges=["80"], index=200, connection_logging=True),
         ]
         result = analyze_zone_pair(rules, "LAN", "DMZ")
         finding = next(f for f in result.findings if f.id == "overlapping-allow-block")
@@ -584,7 +590,7 @@ class TestOverlappingAllowBlock:
                 index=100,
                 connection_state_type="new",
             ),
-            _rule(rule_id="r2", action="BLOCK", protocol="tcp", port_ranges=[], index=200),
+            _rule(rule_id="r2", action="BLOCK", protocol="tcp", port_ranges=[], index=200, connection_logging=True),
         ]
         result = analyze_zone_pair(rules, "LAN", "DMZ")
         assert any(f.id == "overlapping-allow-block" for f in result.findings)
@@ -600,7 +606,127 @@ class TestOverlappingAllowBlock:
                 index=100,
                 connection_state_type="new",
             ),
-            _rule(rule_id="r2", action="BLOCK", protocol="tcp", port_ranges=["80"], index=200),
+            _rule(rule_id="r2", action="BLOCK", protocol="tcp", port_ranges=["80"], index=200, connection_logging=True),
         ]
         result = analyze_zone_pair(rules, "LAN", "DMZ")
         assert not any(f.id == "overlapping-allow-block" for f in result.findings)
+
+
+class TestBroadAddressGroup:
+    def test_source_group_with_any_address(self) -> None:
+        rules = [_rule(action="ALLOW", protocol="tcp", port_ranges=["443"],
+            source_address_group="AllHosts", source_address_group_members=["0.0.0.0/0"],
+            connection_state_type="new")]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        assert any(f.id == "broad-address-group" for f in result.findings)
+
+    def test_destination_group_with_any_address(self) -> None:
+        rules = [_rule(action="ALLOW", protocol="tcp", port_ranges=["443"],
+            destination_address_group="AllHosts", destination_address_group_members=["0.0.0.0/0"],
+            connection_state_type="new")]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        assert any(f.id == "broad-address-group" for f in result.findings)
+
+    def test_ipv6_any_address_flagged(self) -> None:
+        rules = [_rule(action="ALLOW", protocol="tcp", port_ranges=["443"],
+            source_address_group="AllV6", source_address_group_members=["::/0"],
+            connection_state_type="new")]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        assert any(f.id == "broad-address-group" for f in result.findings)
+
+    def test_any_keyword_flagged(self) -> None:
+        rules = [_rule(action="ALLOW", protocol="tcp", port_ranges=["443"],
+            destination_address_group="Any", destination_address_group_members=["any"],
+            connection_state_type="new")]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        assert any(f.id == "broad-address-group" for f in result.findings)
+
+    def test_specific_addresses_not_flagged(self) -> None:
+        rules = [_rule(action="ALLOW", protocol="tcp", port_ranges=["443"],
+            source_address_group="Servers", source_address_group_members=["10.0.1.5", "10.0.1.6"],
+            connection_state_type="new")]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        assert not any(f.id == "broad-address-group" for f in result.findings)
+
+    def test_block_rule_not_flagged(self) -> None:
+        rules = [_rule(action="BLOCK", source_address_group="All", source_address_group_members=["0.0.0.0/0"],
+            connection_logging=True)]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        assert not any(f.id == "broad-address-group" for f in result.findings)
+
+    def test_disabled_rule_not_flagged(self) -> None:
+        rules = [_rule(enabled=False, action="ALLOW", source_address_group="All",
+            source_address_group_members=["0.0.0.0/0"])]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        assert not any(f.id == "broad-address-group" for f in result.findings)
+
+    def test_severity_is_medium(self) -> None:
+        rules = [_rule(action="ALLOW", protocol="tcp", port_ranges=["443"],
+            source_address_group="All", source_address_group_members=["0.0.0.0/0"],
+            connection_state_type="new")]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        finding = next(f for f in result.findings if f.id == "broad-address-group")
+        assert finding.severity == "medium"
+
+
+class TestMissingBlockLogging:
+    def test_block_without_logging(self) -> None:
+        rules = [_rule(action="BLOCK", protocol="tcp", port_ranges=["80"])]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        assert any(f.id == "missing-block-logging" for f in result.findings)
+
+    def test_reject_without_logging(self) -> None:
+        rules = [_rule(action="REJECT", protocol="tcp", port_ranges=["80"])]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        assert any(f.id == "missing-block-logging" for f in result.findings)
+
+    def test_block_with_logging_no_finding(self) -> None:
+        rules = [_rule(action="BLOCK", protocol="tcp", port_ranges=["80"], connection_logging=True)]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        assert not any(f.id == "missing-block-logging" for f in result.findings)
+
+    def test_allow_rule_not_flagged(self) -> None:
+        rules = [_rule(action="ALLOW", protocol="tcp", port_ranges=["80"], connection_state_type="new")]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        assert not any(f.id == "missing-block-logging" for f in result.findings)
+
+    def test_disabled_block_not_flagged(self) -> None:
+        rules = [_rule(enabled=False, action="BLOCK")]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        assert not any(f.id == "missing-block-logging" for f in result.findings)
+
+    def test_severity_is_low(self) -> None:
+        rules = [_rule(action="BLOCK", protocol="tcp", port_ranges=["80"])]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        finding = next(f for f in result.findings if f.id == "missing-block-logging")
+        assert finding.severity == "low"
+
+
+class TestScheduleDependentAllow:
+    def test_allow_with_schedule(self) -> None:
+        rules = [_rule(action="ALLOW", protocol="tcp", port_ranges=["443"],
+            schedule="office-hours", connection_state_type="new")]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        assert any(f.id == "schedule-dependent-allow" for f in result.findings)
+
+    def test_allow_without_schedule_no_finding(self) -> None:
+        rules = [_rule(action="ALLOW", protocol="tcp", port_ranges=["443"], connection_state_type="new")]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        assert not any(f.id == "schedule-dependent-allow" for f in result.findings)
+
+    def test_block_with_schedule_not_flagged(self) -> None:
+        rules = [_rule(action="BLOCK", schedule="office-hours", connection_logging=True)]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        assert not any(f.id == "schedule-dependent-allow" for f in result.findings)
+
+    def test_disabled_rule_not_flagged(self) -> None:
+        rules = [_rule(enabled=False, action="ALLOW", schedule="office-hours")]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        assert not any(f.id == "schedule-dependent-allow" for f in result.findings)
+
+    def test_severity_is_low(self) -> None:
+        rules = [_rule(action="ALLOW", protocol="tcp", port_ranges=["443"],
+            schedule="weekdays", connection_state_type="new")]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        finding = next(f for f in result.findings if f.id == "schedule-dependent-allow")
+        assert finding.severity == "low"
