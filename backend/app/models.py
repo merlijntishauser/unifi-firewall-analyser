@@ -56,6 +56,7 @@ class FindingModel(BaseModel):
     severity: str
     title: str
     description: str
+    rationale: str = ""
     rule_id: str | None = None
     source: str = "static"
 

@@ -431,3 +431,10 @@ class TestAnalyzeZonePair:
         result = analyze_zone_pair(rules, "External", "Internal")
         assert [f.id for f in result.findings] == ["allow-external-to-internal"]
         assert result.score == 85
+
+    def test_findings_have_rationale(self) -> None:
+        """All findings from the analyzer should have a non-empty rationale."""
+        rules = [_rule(protocol="all", port_ranges=[])]
+        result = analyze_zone_pair(rules, "External", "Internal")
+        for finding in result.findings:
+            assert finding.rationale, f"Finding '{finding.id}' has no rationale"

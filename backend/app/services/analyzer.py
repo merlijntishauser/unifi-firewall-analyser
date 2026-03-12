@@ -25,6 +25,7 @@ class Finding:
     severity: str  # "high", "medium", "low"
     title: str
     description: str
+    rationale: str = ""
     rule_id: str | None = None
     source: str = "static"
 
@@ -131,6 +132,10 @@ def _check_allow_all_external(rule: Rule, src_name: str) -> Finding | None:
             severity="high",
             title="Unrestricted allow from external zone",
             description=f"Rule '{rule.name}' allows all traffic from {src_name} with no port or protocol restriction.",
+            rationale=(
+                f"This rule has no port, protocol, or IP restriction and the source zone '{src_name}' "
+                "is internet-facing. Any service on the destination network is reachable."
+            ),
             rule_id=rule.id,
         )
     return None
@@ -148,6 +153,10 @@ def _check_allow_all_protocols_ports(rule: Rule) -> Finding | None:
             severity="high",
             title="Allow rule with no port or protocol restriction",
             description=f"Rule '{rule.name}' allows all protocols and ports.",
+            rationale=(
+                "This rule allows all protocols and ports without restriction. "
+                "Traffic matching this rule is not constrained to specific services."
+            ),
             rule_id=rule.id,
         )
     return None
@@ -169,6 +178,10 @@ def _check_allow_external_to_internal(
             severity="high",
             title="Allow from external to internal zone",
             description=f"Rule '{rule.name}' allows traffic from {src_name} to {dst_name} with no IP restriction.",
+            rationale=(
+                f"Traffic from '{src_name}' (internet-facing) can reach '{dst_name}' (internal) "
+                "without IP-based access control. Any external host can initiate connections."
+            ),
             rule_id=rule.id,
         )
     return None
@@ -181,6 +194,10 @@ def _check_disabled_block(rule: Rule) -> Finding | None:
             severity="medium",
             title="Disabled block rule",
             description=f"Rule '{rule.name}' blocks traffic but is disabled. Enable it or remove it.",
+            rationale=(
+                "A disabled block rule has no effect on traffic. If the block was intentional, "
+                "leaving it disabled weakens the security posture."
+            ),
             rule_id=rule.id,
         )
     return None
@@ -195,6 +212,10 @@ def _check_wide_port_range(rule: Rule) -> Finding | None:
                     severity="medium",
                     title="Allow rule with wide port range",
                     description=f"Rule '{rule.name}' allows a wide port range ({pr}).",
+                    rationale=(
+                        f"A port range of {_port_range_width(pr)} ports exposes a large attack surface. "
+                        "Consider restricting to the specific ports required."
+                    ),
                     rule_id=rule.id,
                 )
     return None
@@ -301,6 +322,10 @@ def _check_predefined_rules(rules: list[Rule]) -> list[Finding]:
                 severity="low",
                 title="Predefined UniFi rule present",
                 description=f"UniFi predefined rule '{rule.name}' affects this zone pair. Review built-in behavior.",
+                rationale=(
+                    "Predefined rules are managed by UniFi and may change with firmware updates. "
+                    "Review their behavior periodically."
+                ),
                 rule_id=rule.id,
             )
         ]
@@ -313,6 +338,10 @@ def _check_predefined_rules(rules: list[Rule]) -> list[Finding]:
             description=(
                 f"{len(predefined_rules)} UniFi predefined rules affect this zone pair. "
                 "Review built-in behavior."
+            ),
+            rationale=(
+                "Predefined rules are managed by UniFi and may change with firmware updates. "
+                "Review their behavior periodically."
             ),
         )
     ]
@@ -338,6 +367,11 @@ def _check_shadowed(rules: list[Rule]) -> list[Finding]:
                             f"Rule '{later.name}' is shadowed by earlier rule '{earlier.name}' "
                             f"({earlier.action}) and will never match."
                         ),
+                        rationale=(
+                            f"Rule '{earlier.name}' at index {earlier.index} matches all traffic that "
+                            f"'{later.name}' at index {later.index} would match. "
+                            "The later rule will never execute."
+                        ),
                         rule_id=later.id,
                     )
                 )
@@ -358,6 +392,10 @@ def analyze_zone_pair(
                 severity="low",
                 title="No explicit rules",
                 description="This zone pair has no explicit firewall rules.",
+                rationale=(
+                    "Without explicit rules, traffic between these zones relies entirely "
+                    "on the default policy."
+                ),
             )
         )
     else:
