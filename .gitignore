@@ -58,5 +58,8 @@ Thumbs.db
 frontend/test-results/
 frontend/playwright-report/
 
+# Runtime data
+data/
+
 # Worktrees
 .worktrees/
