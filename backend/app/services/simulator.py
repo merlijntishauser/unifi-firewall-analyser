@@ -17,6 +17,7 @@ class RuleEvaluation:
     matched: bool
     reason: str
     skipped_disabled: bool = False
+    unresolvable_constraints: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -30,6 +31,7 @@ class SimulationResult:
     matched_rule_name: str | None
     default_policy_used: bool
     evaluations: list[RuleEvaluation] = field(default_factory=list)
+    assumptions: list[str] = field(default_factory=list)
 
 
 def resolve_zone(ip: str, zones: list[Zone]) -> str | None:
@@ -170,6 +172,30 @@ def _match_rule(
     return _MatchResult(all_match=not reasons, reasons=reasons)
 
 
+def _collect_unresolvable(rule: Rule) -> list[str]:
+    """Collect constraints the simulator cannot evaluate."""
+    constraints: list[str] = []
+    for mac in rule.source_mac_addresses:
+        constraints.append(f"Rule requires source MAC {mac}")
+    for mac in rule.destination_mac_addresses:
+        constraints.append(f"Rule requires destination MAC {mac}")
+    if rule.schedule:
+        constraints.append(f"Rule has schedule '{rule.schedule}'")
+    if rule.match_ip_sec and rule.match_ip_sec not in ("False", "false", "MATCH_NONE"):
+        constraints.append(f"Rule requires IPSec match '{rule.match_ip_sec}'")
+    if rule.connection_state_type:
+        constraints.append(f"Rule requires connection state '{rule.connection_state_type}'")
+    return constraints
+
+
+def _gather_assumptions(evaluations: list[RuleEvaluation]) -> list[str]:
+    """Collect all unique unresolvable constraints from evaluations."""
+    all_unresolvable: list[str] = []
+    for ev in evaluations:
+        all_unresolvable.extend(ev.unresolvable_constraints)
+    return sorted(set(all_unresolvable)) if all_unresolvable else []
+
+
 def evaluate_rules(
     rules: list[Rule],
     source_zone_id: str,
@@ -210,14 +236,17 @@ def evaluate_rules(
         result = _match_rule(rule, protocol, port, source_ip, destination_ip, source_port)
 
         if result.all_match:
+            unresolvable = _collect_unresolvable(rule)
             evaluations.append(
                 RuleEvaluation(
                     rule_id=rule.id,
                     rule_name=rule.name,
                     matched=True,
                     reason=f"Matched: protocol={rule.protocol}, ports={rule.port_ranges or 'any'}",
+                    unresolvable_constraints=unresolvable,
                 )
             )
+            assumptions = _gather_assumptions(evaluations)
             return SimulationResult(
                 source_zone_id=source_zone_id,
                 source_zone_name="",  # filled by caller
@@ -228,6 +257,7 @@ def evaluate_rules(
                 matched_rule_name=rule.name,
                 default_policy_used=False,
                 evaluations=evaluations,
+                assumptions=assumptions,
             )
         else:
             evaluations.append(
@@ -240,6 +270,7 @@ def evaluate_rules(
             )
 
     # No rule matched -- default deny
+    assumptions = _gather_assumptions(evaluations)
     return SimulationResult(
         source_zone_id=source_zone_id,
         source_zone_name="",
@@ -250,4 +281,5 @@ def evaluate_rules(
         matched_rule_name=None,
         default_policy_used=True,
         evaluations=evaluations,
+        assumptions=assumptions,
     )

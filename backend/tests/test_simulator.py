@@ -566,6 +566,146 @@ class TestPortGroupMatching:
         assert result.verdict == "ALLOW"
 
 
+class TestUnresolvableConstraints:
+    def test_mac_address_reported(self) -> None:
+        rules = [
+            Rule(
+                id="r1",
+                name="Allow by MAC",
+                enabled=True,
+                action="ALLOW",
+                source_zone_id="zone-a",
+                destination_zone_id="zone-b",
+                source_mac_addresses=["aa:bb:cc:dd:ee:ff"],
+                index=100,
+            ),
+        ]
+        result = evaluate_rules(rules, "zone-a", "zone-b")
+        assert result.verdict == "ALLOW"
+        match_eval = [e for e in result.evaluations if e.matched][0]
+        assert len(match_eval.unresolvable_constraints) > 0
+        assert any("MAC" in c for c in match_eval.unresolvable_constraints)
+
+    def test_destination_mac_address_reported(self) -> None:
+        rules = [
+            Rule(
+                id="r1",
+                name="Allow by dest MAC",
+                enabled=True,
+                action="ALLOW",
+                source_zone_id="zone-a",
+                destination_zone_id="zone-b",
+                destination_mac_addresses=["11:22:33:44:55:66"],
+                index=100,
+            ),
+        ]
+        result = evaluate_rules(rules, "zone-a", "zone-b")
+        assert result.verdict == "ALLOW"
+        match_eval = [e for e in result.evaluations if e.matched][0]
+        assert len(match_eval.unresolvable_constraints) > 0
+        assert any("destination MAC" in c for c in match_eval.unresolvable_constraints)
+
+    def test_schedule_reported(self) -> None:
+        rules = [
+            Rule(
+                id="r1",
+                name="Scheduled Allow",
+                enabled=True,
+                action="ALLOW",
+                source_zone_id="zone-a",
+                destination_zone_id="zone-b",
+                schedule="office-hours",
+                index=100,
+            ),
+        ]
+        result = evaluate_rules(rules, "zone-a", "zone-b")
+        assert result.verdict == "ALLOW"
+        match_eval = [e for e in result.evaluations if e.matched][0]
+        assert any("schedule" in c.lower() for c in match_eval.unresolvable_constraints)
+
+    def test_ipsec_reported(self) -> None:
+        rules = [
+            Rule(
+                id="r1",
+                name="IPSec Allow",
+                enabled=True,
+                action="ALLOW",
+                source_zone_id="zone-a",
+                destination_zone_id="zone-b",
+                match_ip_sec="MATCH_IPSEC",
+                index=100,
+            ),
+        ]
+        result = evaluate_rules(rules, "zone-a", "zone-b")
+        match_eval = [e for e in result.evaluations if e.matched][0]
+        assert any("IPSec" in c for c in match_eval.unresolvable_constraints)
+
+    def test_connection_state_reported(self) -> None:
+        rules = [
+            Rule(
+                id="r1",
+                name="Stateful Allow",
+                enabled=True,
+                action="ALLOW",
+                source_zone_id="zone-a",
+                destination_zone_id="zone-b",
+                connection_state_type="established",
+                index=100,
+            ),
+        ]
+        result = evaluate_rules(rules, "zone-a", "zone-b")
+        match_eval = [e for e in result.evaluations if e.matched][0]
+        assert any("connection state" in c.lower() for c in match_eval.unresolvable_constraints)
+
+    def test_no_constraints_empty_list(self) -> None:
+        rules = [
+            Rule(
+                id="r1",
+                name="Simple Allow",
+                enabled=True,
+                action="ALLOW",
+                source_zone_id="zone-a",
+                destination_zone_id="zone-b",
+                index=100,
+            ),
+        ]
+        result = evaluate_rules(rules, "zone-a", "zone-b")
+        match_eval = [e for e in result.evaluations if e.matched][0]
+        assert match_eval.unresolvable_constraints == []
+
+    def test_assumptions_populated(self) -> None:
+        rules = [
+            Rule(
+                id="r1",
+                name="MAC Allow",
+                enabled=True,
+                action="ALLOW",
+                source_zone_id="zone-a",
+                destination_zone_id="zone-b",
+                source_mac_addresses=["aa:bb:cc:dd:ee:ff"],
+                schedule="office-hours",
+                index=100,
+            ),
+        ]
+        result = evaluate_rules(rules, "zone-a", "zone-b")
+        assert len(result.assumptions) > 0
+
+    def test_no_assumptions_when_clean(self) -> None:
+        rules = [
+            Rule(
+                id="r1",
+                name="Simple Allow",
+                enabled=True,
+                action="ALLOW",
+                source_zone_id="zone-a",
+                destination_zone_id="zone-b",
+                index=100,
+            ),
+        ]
+        result = evaluate_rules(rules, "zone-a", "zone-b")
+        assert result.assumptions == []
+
+
 class TestResolveZoneEdgeCases:
     def test_invalid_subnet_skipped(self) -> None:
         zones = [
