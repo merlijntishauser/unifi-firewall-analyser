@@ -241,6 +241,7 @@ function App() {
             }
             aiConfigured={aiConfigured}
             onClose={() => dispatch({ selectedPair: null })}
+            onRuleUpdated={refresh}
           />
         )}
       </div>

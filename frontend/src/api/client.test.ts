@@ -230,4 +230,26 @@ describe("api client", () => {
       expect(JSON.parse(init.body)).toEqual({ hidden_zone_ids: ["z1", "z2"] });
     });
   });
+
+  describe("toggleRule", () => {
+    it("sends PATCH to toggle endpoint with enabled flag", async () => {
+      mockFetch.mockResolvedValue(mockOkResponse({ status: "ok" }));
+      await api.toggleRule("r1", false);
+      const [url, init] = mockFetch.mock.calls[0];
+      expect(url).toBe("/api/rules/r1/toggle");
+      expect(init.method).toBe("PATCH");
+      expect(JSON.parse(init.body)).toEqual({ enabled: false });
+    });
+  });
+
+  describe("swapRuleOrder", () => {
+    it("sends PUT to reorder endpoint with both policy IDs", async () => {
+      mockFetch.mockResolvedValue(mockOkResponse({ status: "ok" }));
+      await api.swapRuleOrder("r1", "r2");
+      const [url, init] = mockFetch.mock.calls[0];
+      expect(url).toBe("/api/rules/reorder");
+      expect(init.method).toBe("PUT");
+      expect(JSON.parse(init.body)).toEqual({ policy_id_a: "r1", policy_id_b: "r2" });
+    });
+  });
 });

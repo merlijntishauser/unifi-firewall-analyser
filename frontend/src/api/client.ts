@@ -76,4 +76,14 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ hidden_zone_ids: hiddenZoneIds }),
     }),
+  toggleRule: (ruleId: string, enabled: boolean) =>
+    fetchJson(`/rules/${ruleId}/toggle`, {
+      method: "PATCH",
+      body: JSON.stringify({ enabled }),
+    }),
+  swapRuleOrder: (policyIdA: string, policyIdB: string) =>
+    fetchJson("/rules/reorder", {
+      method: "PUT",
+      body: JSON.stringify({ policy_id_a: policyIdA, policy_id_b: policyIdB }),
+    }),
 };

@@ -7,6 +7,8 @@ vi.mock("../api/client", () => ({
   api: {
     simulate: vi.fn(),
     analyzeWithAi: vi.fn(),
+    toggleRule: vi.fn(),
+    swapRuleOrder: vi.fn(),
   },
 }));
 
@@ -69,7 +71,7 @@ describe("RulePanel", () => {
     vi.clearAllMocks();
   });
 
-  function renderPanel(pair?: ZonePair, sourceZoneName = "External", destZoneName = "Internal", aiConfigured = false) {
+  function renderPanel(pair?: ZonePair, sourceZoneName = "External", destZoneName = "Internal", aiConfigured = false, onRuleUpdated = vi.fn()) {
     return render(
       <RulePanel
         pair={pair ?? makePair()}
@@ -77,6 +79,7 @@ describe("RulePanel", () => {
         destZoneName={destZoneName}
         aiConfigured={aiConfigured}
         onClose={onClose}
+        onRuleUpdated={onRuleUpdated}
       />,
     );
   }
@@ -1042,6 +1045,135 @@ describe("RulePanel", () => {
       await waitFor(() => {
         expect(screen.getByText("AI service unavailable")).toBeInTheDocument();
       });
+    });
+  });
+
+  describe("toggle", () => {
+    it("shows toggle switch for non-predefined rules", () => {
+      renderPanel();
+      expect(screen.getByLabelText(/Disable Test Rule/)).toBeInTheDocument();
+    });
+
+    it("hides toggle for predefined rules", () => {
+      renderPanel(makePair([makeRule({ predefined: true, name: "Built-in" })]));
+      expect(screen.queryByLabelText(/Disable Built-in/)).not.toBeInTheDocument();
+    });
+
+    it("shows confirm dialog when toggle clicked", async () => {
+      renderPanel();
+      fireEvent.click(screen.getByLabelText(/Disable Test Rule/));
+      expect(screen.getByText(/Disable "Test Rule"/)).toBeVisible();
+    });
+
+    it("calls toggleRule API on confirm", async () => {
+      const onRuleUpdated = vi.fn();
+      vi.mocked(api.toggleRule).mockResolvedValue(undefined);
+      renderPanel(undefined, undefined, undefined, undefined, onRuleUpdated);
+      fireEvent.click(screen.getByLabelText(/Disable Test Rule/));
+      fireEvent.click(screen.getByRole("button", { name: "Disable" }));
+      await waitFor(() => {
+        expect(api.toggleRule).toHaveBeenCalledWith("r1", false);
+      });
+      await waitFor(() => {
+        expect(onRuleUpdated).toHaveBeenCalled();
+      });
+    });
+
+    it("does not call API when cancel clicked", () => {
+      renderPanel();
+      fireEvent.click(screen.getByLabelText(/Disable Test Rule/));
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      expect(api.toggleRule).not.toHaveBeenCalled();
+    });
+
+    it("shows error when toggleRule API fails", async () => {
+      vi.mocked(api.toggleRule).mockRejectedValue(new Error("Toggle error"));
+      renderPanel();
+      fireEvent.click(screen.getByLabelText(/Disable Test Rule/));
+      fireEvent.click(screen.getByRole("button", { name: "Disable" }));
+      await waitFor(() => {
+        expect(screen.getByText("Toggle error")).toBeInTheDocument();
+      });
+    });
+
+    it("shows fallback error when toggleRule rejects with non-Error", async () => {
+      vi.mocked(api.toggleRule).mockRejectedValue("unexpected");
+      renderPanel();
+      fireEvent.click(screen.getByLabelText(/Disable Test Rule/));
+      fireEvent.click(screen.getByRole("button", { name: "Disable" }));
+      await waitFor(() => {
+        expect(screen.getByText("Toggle failed")).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("reorder", () => {
+    it("shows move down button on first rule, no move up", () => {
+      renderPanel(makePair([makeRule({ index: 100 }), makeRule({ id: "r2", name: "Rule 2", index: 200 })]));
+      expect(screen.getByLabelText(/Move Test Rule down/)).toBeInTheDocument();
+      expect(screen.queryByLabelText(/Move Test Rule up/)).not.toBeInTheDocument();
+    });
+
+    it("shows move up button on last rule, no move down", () => {
+      renderPanel(makePair([makeRule({ index: 100 }), makeRule({ id: "r2", name: "Rule 2", index: 200 })]));
+      expect(screen.getByLabelText(/Move Rule 2 up/)).toBeInTheDocument();
+      expect(screen.queryByLabelText(/Move Rule 2 down/)).not.toBeInTheDocument();
+    });
+
+    it("calls swapRuleOrder API on confirm", async () => {
+      const onRuleUpdated = vi.fn();
+      vi.mocked(api.swapRuleOrder).mockResolvedValue(undefined);
+      renderPanel(makePair([makeRule({ index: 100 }), makeRule({ id: "r2", name: "Rule 2", index: 200 })]), undefined, undefined, undefined, onRuleUpdated);
+      fireEvent.click(screen.getByLabelText(/Move Test Rule down/));
+      fireEvent.click(screen.getByRole("button", { name: /Move down/ }));
+      await waitFor(() => {
+        expect(api.swapRuleOrder).toHaveBeenCalledWith("r1", "r2");
+      });
+      await waitFor(() => {
+        expect(onRuleUpdated).toHaveBeenCalled();
+      });
+    });
+
+    it("calls swapRuleOrder API with correct args when moving up", async () => {
+      const onRuleUpdated = vi.fn();
+      vi.mocked(api.swapRuleOrder).mockResolvedValue(undefined);
+      renderPanel(makePair([makeRule({ index: 100 }), makeRule({ id: "r2", name: "Rule 2", index: 200 })]), undefined, undefined, undefined, onRuleUpdated);
+      fireEvent.click(screen.getByLabelText(/Move Rule 2 up/));
+      fireEvent.click(screen.getByRole("button", { name: /Move up/ }));
+      await waitFor(() => {
+        expect(api.swapRuleOrder).toHaveBeenCalledWith("r1", "r2");
+      });
+      await waitFor(() => {
+        expect(onRuleUpdated).toHaveBeenCalled();
+      });
+    });
+
+    it("shows error when swapRuleOrder API fails", async () => {
+      vi.mocked(api.swapRuleOrder).mockRejectedValue(new Error("Reorder error"));
+      renderPanel(makePair([makeRule({ index: 100 }), makeRule({ id: "r2", name: "Rule 2", index: 200 })]));
+      fireEvent.click(screen.getByLabelText(/Move Test Rule down/));
+      fireEvent.click(screen.getByRole("button", { name: /Move down/ }));
+      await waitFor(() => {
+        expect(screen.getByText("Reorder error")).toBeInTheDocument();
+      });
+    });
+
+    it("shows fallback error when swapRuleOrder rejects with non-Error", async () => {
+      vi.mocked(api.swapRuleOrder).mockRejectedValue("unexpected");
+      renderPanel(makePair([makeRule({ index: 100 }), makeRule({ id: "r2", name: "Rule 2", index: 200 })]));
+      fireEvent.click(screen.getByLabelText(/Move Test Rule down/));
+      fireEvent.click(screen.getByRole("button", { name: /Move down/ }));
+      await waitFor(() => {
+        expect(screen.getByText("Reorder failed")).toBeInTheDocument();
+      });
+    });
+
+    it("hides reorder buttons for predefined rules", () => {
+      renderPanel(makePair([
+        makeRule({ index: 100 }),
+        makeRule({ id: "r2", name: "Built-in", index: 200, predefined: true }),
+      ]));
+      expect(screen.queryByLabelText(/Move Built-in/)).not.toBeInTheDocument();
     });
   });
 

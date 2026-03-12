@@ -166,6 +166,16 @@ export async function mockApi(page: Page, options: { authenticated?: boolean } =
     }),
   );
 
+  // Toggle rule
+  await page.route("**/api/rules/*/toggle", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ status: "ok" }) }),
+  );
+
+  // Swap rule order
+  await page.route("**/api/rules/reorder", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ status: "ok" }) }),
+  );
+
   await page.route("**/api/settings/zone-filter", (route) => {
     if (route.request().method() === "GET") {
       return route.fulfill({ json: { hidden_zone_ids: [] } });

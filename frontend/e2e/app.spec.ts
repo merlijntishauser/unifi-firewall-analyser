@@ -128,6 +128,65 @@ test.describe("traffic simulation", () => {
   });
 });
 
+/** Click a matrix cell that has multiple rules (3+). */
+async function clickMultiRuleCell(page: import("@playwright/test").Page) {
+  const cells = page.getByTestId("matrix-cell");
+  const count = await cells.count();
+  for (let i = 0; i < count; i++) {
+    const text = await cells.nth(i).innerText();
+    const match = text.match(/(\d+)/);
+    if (match && Number(match[1]) >= 3) {
+      await cells.nth(i).click();
+      return;
+    }
+  }
+  throw new Error("No matrix cell with 3+ rules found");
+}
+
+test.describe("rule toggle", () => {
+  test("toggle shows confirm dialog and completes", async ({ page }) => {
+    await mockApi(page);
+    await page.goto("/");
+    await waitForMatrix(page);
+    await clickCell(page);
+    await expect(page.getByText("Rules (")).toBeVisible();
+
+    // Find and click a toggle switch (aria-label contains "Disable" or "Enable")
+    const toggle = page.getByLabel(/Disable|Enable/).first();
+    await toggle.click();
+
+    // Confirm dialog should appear
+    await expect(page.getByText(/This change applies immediately/)).toBeVisible();
+
+    // Click confirm inside the dialog
+    await page.getByTestId("confirm-backdrop").getByRole("button", { name: /Disable|Enable/ }).click();
+
+    // Dialog should close
+    await expect(page.getByText(/This change applies immediately/)).not.toBeVisible();
+  });
+});
+
+test.describe("rule reorder", () => {
+  test("move down shows confirm dialog and completes", async ({ page }) => {
+    await mockApi(page);
+    await page.goto("/");
+    await waitForMatrix(page);
+    await clickMultiRuleCell(page);
+    await expect(page.getByText("Rules (")).toBeVisible();
+
+    // Find a "move down" button
+    const moveDown = page.getByLabel(/Move .+ down/).first();
+    await moveDown.click();
+
+    // Confirm dialog
+    await expect(page.getByText(/changes rule evaluation order/)).toBeVisible();
+
+    // Confirm
+    await page.getByRole("button", { name: /Move down/ }).click();
+    await expect(page.getByText(/changes rule evaluation order/)).not.toBeVisible();
+  });
+});
+
 test.describe("navigation", () => {
   test("back button returns to matrix from graph", async ({ page }) => {
     await mockApi(page);

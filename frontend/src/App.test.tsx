@@ -18,6 +18,8 @@ vi.mock("./api/client", () => ({
     testAiConnection: vi.fn(),
     getAiPresets: vi.fn(),
     analyzeWithAi: vi.fn(),
+    toggleRule: vi.fn(),
+    swapRuleOrder: vi.fn(),
     getZoneFilter: vi.fn(),
     saveZoneFilter: vi.fn(),
   },
