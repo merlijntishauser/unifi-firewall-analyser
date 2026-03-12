@@ -1,6 +1,6 @@
 # Product Roadmap
 
-Date: 2026-03-12
+Last updated: 2026-03-12
 
 ## Current Assessment
 
@@ -30,13 +30,23 @@ Why this is first:
 - Recent analyzer improvements reduced obvious false positives, but the model still does not fully cover the full UniFi rule surface.
 - AI analysis only adds value if the deterministic baseline is trusted first.
 
+#### Phase 1: Static analysis, simulator parity, and golden tests
+
 What to ship:
 
-- Expand analyzer and simulator parity for schedules, address groups, network objects, state handling, `DROP` semantics, and more default-rule interactions.
-- Build a sanitized fixture corpus from real UniFi exports and use it for golden tests on findings, scores, grades, and simulation outcomes.
-- Surface clearer reasoning in the UI and API: why a rule matched, why a finding fired, and what assumptions were made.
+- Extend the simulator to match against all resolvable Rule constraints (IP ranges, address groups, source ports, port groups). For constraints it cannot evaluate (MAC addresses, schedules, IPSec, connection state), report them as unresolvable in the evaluation trace rather than silently skipping them.
+- Add five new static analyzer checks: no connection state tracking (high), overlapping allow/block interactions (medium), broad address group resolution (medium), missing logging on block rules (low), and schedule-dependent allows (low).
+- Add structured `rationale` to all findings explaining why each issue is flagged.
+- Polish the RulePanel UI: collapsible rationale, severity-grouped findings, visual pass/fail/unknown evaluation traces, assumption banners on simulation results.
+- Build 6 hand-crafted golden test fixtures covering clean, permissive, exposed, complex-interaction, constrained, and large-ruleset scenarios as regression anchors.
 
-AI analysis design summary:
+Related design:
+
+- [Analysis Fidelity and Explainability Design](plans/2026-03-12-analysis-fidelity-design.md)
+
+#### Phase 2: AI analysis reliability
+
+What to ship:
 
 - Split AI provider transport settings from AI analysis settings instead of overloading one config object.
 - Add `site_profile` as analysis context with `homelab`, `smb`, and `enterprise`, but use it to tune prioritization and remediation rather than hard facts.
@@ -47,6 +57,10 @@ AI analysis design summary:
 Related design:
 
 - [AI Analysis Reliability and Site Profile Design](plans/2026-03-12-ai-analysis-design.md)
+
+#### Future: Template-based fixture generation
+
+- Define site archetypes as parameterized templates and generate fixture sets programmatically for broader regression coverage. Follows after hand-crafted fixtures prove the golden test pattern.
 
 Done looks like:
 
@@ -120,11 +134,15 @@ Why this is fifth:
 
 - This is the clearest product expansion area, but it should follow trust, security, and upgrade safety work.
 - The existing app is good at diagnosis, but it still stops short of helping users close the loop.
-- The repo already has a write-operations plan, which makes this a credible next-step once the safety prerequisites are in place.
 
-What to ship:
+Already shipped:
 
-- Add safe write operations incrementally, starting with enable/disable and reorder under explicit confirmation and audit-friendly logging.
+- Rule enable/disable toggle with confirmation dialog.
+- Rule reorder (move up/down) with confirmation dialog.
+- Backend write operations via unifi-topology library.
+
+What remains:
+
 - Add remediation-oriented flows: suggested next actions, rule diffs, and before/after validation via simulation.
 - Add export/share paths for findings and posture reports so the tool can support review and change management workflows.
 
