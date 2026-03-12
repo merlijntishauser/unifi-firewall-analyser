@@ -203,6 +203,28 @@ def _check_disabled_block(rule: Rule) -> Finding | None:
     return None
 
 
+def _check_no_connection_state(rule: Rule) -> Finding | None:
+    if (
+        rule.enabled
+        and rule.action == "ALLOW"
+        and not rule.connection_state_type
+        and not _is_return_traffic(rule)
+    ):
+        return Finding(
+            id="no-connection-state",
+            severity="high",
+            title="Allow rule without connection state tracking",
+            description=f"Rule '{rule.name}' allows traffic without connection state tracking.",
+            rationale=(
+                "Without connection state tracking, this rule accepts both new and established "
+                "connections. Consider restricting to 'new' connections with separate "
+                "established/related return rules for tighter control."
+            ),
+            rule_id=rule.id,
+        )
+    return None
+
+
 def _check_wide_port_range(rule: Rule) -> Finding | None:
     if rule.enabled and rule.action == "ALLOW":
         for pr in _destination_port_constraints(rule):
@@ -411,7 +433,7 @@ def analyze_zone_pair(
             if broad_allow_finding is not None:
                 findings.append(broad_allow_finding)
 
-            for check in (_check_disabled_block, _check_wide_port_range):
+            for check in (_check_disabled_block, _check_wide_port_range, _check_no_connection_state):
                 finding = check(rule)
                 if finding is not None:
                     findings.append(finding)

@@ -426,11 +426,11 @@ class TestAnalyzeZonePair:
         result = analyze_zone_pair(rules, "LAN", "WAN")
         assert any(f.id == "shadowed-rule" and f.rule_id == "r2" for f in result.findings)
 
-    def test_unrestricted_external_to_internal_reports_single_specific_finding(self) -> None:
+    def test_unrestricted_external_to_internal_reports_specific_findings(self) -> None:
         rules = [_rule(name="Allow All Inbound", protocol="all", port_ranges=[])]
         result = analyze_zone_pair(rules, "External", "Internal")
-        assert [f.id for f in result.findings] == ["allow-external-to-internal"]
-        assert result.score == 85
+        assert [f.id for f in result.findings] == ["allow-external-to-internal", "no-connection-state"]
+        assert result.score == 70
 
     def test_findings_have_rationale(self) -> None:
         """All findings from the analyzer should have a non-empty rationale."""
@@ -438,3 +438,41 @@ class TestAnalyzeZonePair:
         result = analyze_zone_pair(rules, "External", "Internal")
         for finding in result.findings:
             assert finding.rationale, f"Finding '{finding.id}' has no rationale"
+
+
+class TestNoConnectionState:
+    def test_allow_without_state_tracking(self) -> None:
+        rules = [_rule(action="ALLOW", protocol="tcp", port_ranges=["443"])]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        assert any(f.id == "no-connection-state" for f in result.findings)
+
+    def test_allow_with_state_tracking_no_finding(self) -> None:
+        rules = [_rule(action="ALLOW", protocol="tcp", port_ranges=["443"], connection_state_type="new")]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        assert not any(f.id == "no-connection-state" for f in result.findings)
+
+    def test_return_traffic_rule_not_flagged(self) -> None:
+        rules = [_rule(name="Allow Return Traffic", action="ALLOW", protocol="all")]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        assert not any(f.id == "no-connection-state" for f in result.findings)
+
+    def test_established_state_not_flagged(self) -> None:
+        rules = [_rule(action="ALLOW", protocol="all", connection_state_type="established")]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        assert not any(f.id == "no-connection-state" for f in result.findings)
+
+    def test_block_rule_not_flagged(self) -> None:
+        rules = [_rule(action="BLOCK", protocol="tcp", port_ranges=["80"])]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        assert not any(f.id == "no-connection-state" for f in result.findings)
+
+    def test_disabled_rule_not_flagged(self) -> None:
+        rules = [_rule(enabled=False, action="ALLOW", protocol="tcp", port_ranges=["443"])]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        assert not any(f.id == "no-connection-state" for f in result.findings)
+
+    def test_severity_is_high(self) -> None:
+        rules = [_rule(action="ALLOW", protocol="tcp", port_ranges=["443"])]
+        result = analyze_zone_pair(rules, "LAN", "DMZ")
+        finding = next(f for f in result.findings if f.id == "no-connection-state")
+        assert finding.severity == "high"
