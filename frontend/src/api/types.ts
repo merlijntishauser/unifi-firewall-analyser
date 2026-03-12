@@ -24,6 +24,28 @@ export interface Rule {
   ip_ranges: string[];
   index: number;
   predefined: boolean;
+  // Source-side filtering
+  source_ip_ranges: string[];
+  source_mac_addresses: string[];
+  source_port_ranges: string[];
+  source_network_id: string;
+  // Destination-side filtering
+  destination_mac_addresses: string[];
+  destination_network_id: string;
+  // Firewall group references (resolved)
+  source_port_group: string;
+  source_port_group_members: string[];
+  destination_port_group: string;
+  destination_port_group_members: string[];
+  source_address_group: string;
+  source_address_group_members: string[];
+  destination_address_group: string;
+  destination_address_group_members: string[];
+  // Connection state / metadata
+  connection_state_type: string;
+  connection_logging: boolean;
+  schedule: string;
+  match_ip_sec: string;
 }
 
 export interface Finding {

@@ -29,6 +29,24 @@ function makeRule(overrides: Partial<Rule> = {}): Rule {
     ip_ranges: [],
     index: 1,
     predefined: false,
+    source_ip_ranges: [],
+    source_mac_addresses: [],
+    source_port_ranges: [],
+    source_network_id: "",
+    destination_mac_addresses: [],
+    destination_network_id: "",
+    source_port_group: "",
+    source_port_group_members: [],
+    destination_port_group: "",
+    destination_port_group_members: [],
+    source_address_group: "",
+    source_address_group_members: [],
+    destination_address_group: "",
+    destination_address_group_members: [],
+    connection_state_type: "",
+    connection_logging: false,
+    schedule: "",
+    match_ip_sec: "",
     ...overrides,
   };
 }
@@ -86,7 +104,7 @@ describe("RulePanel", () => {
       expect(screen.getByText("Rules (2)")).toBeInTheDocument();
     });
 
-    it("displays rules sorted by index", () => {
+    it("displays rules sorted by index with priority numbers", () => {
       const rules = [
         makeRule({ id: "r2", name: "Second", index: 5 }),
         makeRule({ id: "r1", name: "First", index: 1 }),
@@ -96,8 +114,8 @@ describe("RulePanel", () => {
 
       const ruleNames = screen.getAllByText(/\d+\.\s/).map((el) => el.textContent);
       expect(ruleNames[0]).toContain("1. First");
-      expect(ruleNames[1]).toContain("5. Second");
-      expect(ruleNames[2]).toContain("10. Third");
+      expect(ruleNames[1]).toContain("2. Second");
+      expect(ruleNames[2]).toContain("3. Third");
     });
 
     it("shows action badge for ALLOW rule", () => {
@@ -148,6 +166,251 @@ describe("RulePanel", () => {
     it("does not show protocol/port line when both are empty", () => {
       renderPanel(makePair([makeRule({ protocol: "", port_ranges: [] })]));
       expect(screen.queryByText("port")).not.toBeInTheDocument();
+    });
+
+    it("expands rule details on click showing all fields", () => {
+      const rule = makeRule({
+        description: "Allow HTTP traffic",
+        protocol: "TCP",
+        port_ranges: ["80", "443"],
+        ip_ranges: ["10.0.0.0/8"],
+        index: 5000,
+        action: "ALLOW",
+      });
+      renderPanel(makePair([rule]), "External", "Internal");
+
+      // Details not visible initially
+      expect(screen.queryByText("Allow HTTP traffic")).not.toBeInTheDocument();
+
+      // Click to expand
+      fireEvent.click(screen.getByRole("button", { name: /1\. Test Rule/ }));
+
+      // Description shown as italic text
+      expect(screen.getByText("Allow HTTP traffic")).toBeInTheDocument();
+      // Detail fields in definition list
+      expect(screen.getByText("Action")).toBeInTheDocument();
+      expect(screen.getByText("Protocol")).toBeInTheDocument();
+      expect(screen.getByText("Dst Ports")).toBeInTheDocument();
+      expect(screen.getByText("80, 443")).toBeInTheDocument();
+      expect(screen.getByText("Dst IPs")).toBeInTheDocument();
+      expect(screen.getByText("10.0.0.0/8")).toBeInTheDocument();
+      expect(screen.getByText("Source")).toBeInTheDocument();
+      expect(screen.getByText("Destination")).toBeInTheDocument();
+      expect(screen.getByText("Enabled")).toBeInTheDocument();
+      expect(screen.getByText("Logging")).toBeInTheDocument();
+      expect(screen.getByText("Index")).toBeInTheDocument();
+      expect(screen.getByText("5000")).toBeInTheDocument();
+      expect(screen.getByText(/ID: r1/)).toBeInTheDocument();
+    });
+
+    it("collapses rule details on second click", () => {
+      renderPanel(makePair([makeRule({ description: "Some desc" })]));
+
+      const ruleBtn = screen.getByRole("button", { name: /1\. Test Rule/ });
+      fireEvent.click(ruleBtn);
+      expect(screen.getByText("Some desc")).toBeInTheDocument();
+
+      fireEvent.click(ruleBtn);
+      expect(screen.queryByText("Some desc")).not.toBeInTheDocument();
+    });
+
+    it("shows Disabled status in expanded details", () => {
+      renderPanel(makePair([makeRule({ enabled: false })]));
+
+      fireEvent.click(screen.getByRole("button", { name: /1\. Test Rule/ }));
+      const statusLabel = screen.getByText("Status");
+      const dd = statusLabel.nextElementSibling;
+      expect(dd?.textContent).toBe("Disabled");
+    });
+
+    it("does not show description when empty", () => {
+      renderPanel(makePair([makeRule({ description: "" })]));
+
+      fireEvent.click(screen.getByRole("button", { name: /1\. Test Rule/ }));
+      // dl fields should still show, but no italic description paragraph
+      expect(screen.getByText("Protocol")).toBeInTheDocument();
+      // Port and IP rows show "any" when empty
+      expect(screen.getAllByText("any").length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("shows 'any' for empty port_ranges and ip_ranges", () => {
+      renderPanel(makePair([makeRule({ port_ranges: [], ip_ranges: [] })]));
+
+      fireEvent.click(screen.getByRole("button", { name: /1\. Test Rule/ }));
+      const anyTexts = screen.getAllByText("any");
+      // dst ports "any" + dst IPs "any"
+      expect(anyTexts.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("shows predefined type when rule is predefined", () => {
+      renderPanel(makePair([makeRule({ predefined: true })]));
+
+      fireEvent.click(screen.getByRole("button", { name: /1\. Test Rule/ }));
+      expect(screen.getByText("Type")).toBeInTheDocument();
+      expect(screen.getByText("Built-in (predefined)")).toBeInTheDocument();
+    });
+
+    it("does not show type row when rule is not predefined", () => {
+      renderPanel(makePair([makeRule({ predefined: false })]));
+
+      fireEvent.click(screen.getByRole("button", { name: /1\. Test Rule/ }));
+      expect(screen.queryByText("Type")).not.toBeInTheDocument();
+    });
+
+    it("shows source port group with resolved members", () => {
+      renderPanel(makePair([makeRule({
+        source_port_group: "Web Ports",
+        source_port_group_members: ["80", "443", "8080"],
+      })]));
+
+      fireEvent.click(screen.getByRole("button", { name: /1\. Test Rule/ }));
+      expect(screen.getByText("Src Port Group")).toBeInTheDocument();
+      expect(screen.getByText("Web Ports")).toBeInTheDocument();
+      expect(screen.getByText("(80, 443, 8080)")).toBeInTheDocument();
+    });
+
+    it("shows destination port group with resolved members", () => {
+      renderPanel(makePair([makeRule({
+        destination_port_group: "DNS Ports",
+        destination_port_group_members: ["53"],
+      })]));
+
+      fireEvent.click(screen.getByRole("button", { name: /1\. Test Rule/ }));
+      expect(screen.getByText("Dst Port Group")).toBeInTheDocument();
+      expect(screen.getByText("DNS Ports")).toBeInTheDocument();
+      expect(screen.getByText("(53)")).toBeInTheDocument();
+    });
+
+    it("shows address groups with resolved members", () => {
+      renderPanel(makePair([makeRule({
+        destination_address_group: "DNS Servers",
+        destination_address_group_members: ["1.1.1.1", "8.8.8.8"],
+      })]));
+
+      fireEvent.click(screen.getByRole("button", { name: /1\. Test Rule/ }));
+      expect(screen.getByText("Dst Addr Group")).toBeInTheDocument();
+      expect(screen.getByText("DNS Servers")).toBeInTheDocument();
+      expect(screen.getByText("(1.1.1.1, 8.8.8.8)")).toBeInTheDocument();
+    });
+
+    it("shows connection state when set", () => {
+      renderPanel(makePair([makeRule({ connection_state_type: "ESTABLISHED" })]));
+
+      fireEvent.click(screen.getByRole("button", { name: /1\. Test Rule/ }));
+      expect(screen.getByText("Conn State")).toBeInTheDocument();
+      expect(screen.getByText("ESTABLISHED")).toBeInTheDocument();
+    });
+
+    it("shows logging as enabled", () => {
+      renderPanel(makePair([makeRule({ connection_logging: true })]));
+
+      fireEvent.click(screen.getByRole("button", { name: /1\. Test Rule/ }));
+      const loggingLabel = screen.getByText("Logging");
+      const dd = loggingLabel.nextElementSibling;
+      expect(dd?.textContent).toBe("Enabled");
+    });
+
+    it("shows schedule when set", () => {
+      renderPanel(makePair([makeRule({ schedule: "weekdays-only" })]));
+
+      fireEvent.click(screen.getByRole("button", { name: /1\. Test Rule/ }));
+      expect(screen.getByText("Schedule")).toBeInTheDocument();
+      expect(screen.getByText("weekdays-only")).toBeInTheDocument();
+    });
+
+    it("shows source IP ranges when set", () => {
+      renderPanel(makePair([makeRule({ source_ip_ranges: ["192.168.1.0/24"] })]));
+
+      fireEvent.click(screen.getByRole("button", { name: /1\. Test Rule/ }));
+      expect(screen.getByText("Src IPs")).toBeInTheDocument();
+      expect(screen.getByText("192.168.1.0/24")).toBeInTheDocument();
+    });
+
+    it("shows source MAC addresses when set", () => {
+      renderPanel(makePair([makeRule({ source_mac_addresses: ["AA:BB:CC:DD:EE:FF"] })]));
+
+      fireEvent.click(screen.getByRole("button", { name: /1\. Test Rule/ }));
+      expect(screen.getByText("Src MACs")).toBeInTheDocument();
+      expect(screen.getByText("AA:BB:CC:DD:EE:FF")).toBeInTheDocument();
+    });
+
+    it("shows destination MAC addresses when set", () => {
+      renderPanel(makePair([makeRule({ destination_mac_addresses: ["11:22:33:44:55:66"] })]));
+
+      fireEvent.click(screen.getByRole("button", { name: /1\. Test Rule/ }));
+      expect(screen.getByText("Dst MACs")).toBeInTheDocument();
+      expect(screen.getByText("11:22:33:44:55:66")).toBeInTheDocument();
+    });
+
+    it("shows source address group with resolved members", () => {
+      renderPanel(makePair([makeRule({
+        source_address_group: "Trusted IPs",
+        source_address_group_members: ["10.0.0.1", "10.0.0.2"],
+      })]));
+
+      fireEvent.click(screen.getByRole("button", { name: /1\. Test Rule/ }));
+      expect(screen.getByText("Src Addr Group")).toBeInTheDocument();
+      expect(screen.getByText("Trusted IPs")).toBeInTheDocument();
+      expect(screen.getByText("(10.0.0.1, 10.0.0.2)")).toBeInTheDocument();
+    });
+
+    it("shows IPSec match when set", () => {
+      renderPanel(makePair([makeRule({ match_ip_sec: "MATCH_IPSEC" })]));
+
+      fireEvent.click(screen.getByRole("button", { name: /1\. Test Rule/ }));
+      expect(screen.getByText("IPSec")).toBeInTheDocument();
+      expect(screen.getByText("MATCH_IPSEC")).toBeInTheDocument();
+    });
+
+    it("hides optional fields when empty", () => {
+      renderPanel(makePair([makeRule()]));
+
+      fireEvent.click(screen.getByRole("button", { name: /1\. Test Rule/ }));
+      expect(screen.queryByText("Src Ports")).not.toBeInTheDocument();
+      expect(screen.queryByText("Src IPs")).not.toBeInTheDocument();
+      expect(screen.queryByText("Src MACs")).not.toBeInTheDocument();
+      expect(screen.queryByText("Dst MACs")).not.toBeInTheDocument();
+      expect(screen.queryByText("Dst Port Group")).not.toBeInTheDocument();
+      expect(screen.queryByText("Src Port Group")).not.toBeInTheDocument();
+      expect(screen.queryByText("Dst Addr Group")).not.toBeInTheDocument();
+      expect(screen.queryByText("Src Addr Group")).not.toBeInTheDocument();
+      expect(screen.queryByText("Conn State")).not.toBeInTheDocument();
+      expect(screen.queryByText("Schedule")).not.toBeInTheDocument();
+      expect(screen.queryByText("IPSec")).not.toBeInTheDocument();
+    });
+
+    it("expands rule details on Enter key", () => {
+      renderPanel(makePair([makeRule({ description: "Key desc" })]));
+      const ruleBtn = screen.getByRole("button", { name: /1\. Test Rule/ });
+
+      fireEvent.keyDown(ruleBtn, { key: "Enter" });
+      expect(screen.getByText("Key desc")).toBeInTheDocument();
+
+      fireEvent.keyDown(ruleBtn, { key: "Enter" });
+      expect(screen.queryByText("Description:")).not.toBeInTheDocument();
+    });
+
+    it("expands rule details on Space key", () => {
+      renderPanel(makePair([makeRule({ description: "Space desc" })]));
+      const ruleBtn = screen.getByRole("button", { name: /1\. Test Rule/ });
+
+      fireEvent.keyDown(ruleBtn, { key: " " });
+      expect(screen.getByText("Space desc")).toBeInTheDocument();
+    });
+
+    it("only expands one rule at a time", () => {
+      const rules = [
+        makeRule({ id: "r1", name: "Rule One", index: 1, description: "First desc" }),
+        makeRule({ id: "r2", name: "Rule Two", index: 2, description: "Second desc" }),
+      ];
+      renderPanel(makePair(rules));
+
+      fireEvent.click(screen.getByRole("button", { name: /1\. Rule One/ }));
+      expect(screen.getByText("First desc")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: /2\. Rule Two/ }));
+      expect(screen.getByText("Second desc")).toBeInTheDocument();
+      expect(screen.queryByText("First desc")).not.toBeInTheDocument();
     });
   });
 
@@ -564,6 +827,7 @@ describe("RulePanel", () => {
       fireEvent.click(screen.getByRole("button", { name: "Simulate" }));
 
       await waitFor(() => {
+        // Rule Two is priority 2 (second in sorted order)
         const ruleTwo = screen.getByText("2. Rule Two").closest("div[class*='rounded']");
         expect(ruleTwo?.className).toContain("ring-2");
         expect(ruleTwo?.className).toContain("ring-ub-blue");

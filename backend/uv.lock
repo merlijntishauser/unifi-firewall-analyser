@@ -748,7 +748,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28.0" },
     { name = "pydantic", specifier = ">=2.10.0" },
     { name = "pydantic-settings", specifier = ">=2.7.0" },
-    { name = "unifi-topology", specifier = ">=1.0.7" },
+    { name = "unifi-topology", specifier = ">=1.0.8" },
     { name = "uvicorn", specifier = ">=0.34.0" },
 ]
 
@@ -765,7 +765,7 @@ dev = [
 
 [[package]]
 name = "unifi-topology"
-version = "1.0.7"
+version = "1.0.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "dnspython" },
@@ -773,9 +773,9 @@ dependencies = [
     { name = "pyyaml" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b3/d5/ca1ae89bf3c831f393cef48441b319f19d3ac82927666d80fd379c588c48/unifi_topology-1.0.7.tar.gz", hash = "sha256:6e281bf717697692e09477c45a32cdebde41773aeb8ea869e0a0c7f144716dbc", size = 319948, upload-time = "2026-03-09T15:35:56.231Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/92/48/ff55a158f288572ba31298708e5ed2de20fe43a770b50b7555a839fa4fb2/unifi_topology-1.0.8.tar.gz", hash = "sha256:0200a865741d30087b0980df095d562e43d4f11289f002ad406f2f718c52f816", size = 321478, upload-time = "2026-03-12T13:34:39.895Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3c/22/1154168b390a8c499709c12dea331897b7317b7bdac2a1cd4e3d2b2d3b45/unifi_topology-1.0.7-py3-none-any.whl", hash = "sha256:d8bd53c1f3b0efdc9817b3530353deede45536f853cf138b9ad489e5b1b47a15", size = 350924, upload-time = "2026-03-09T15:35:54.942Z" },
+    { url = "https://files.pythonhosted.org/packages/8c/59/86e0db7b48d3b01cd1f1f95f29a03b4a5c2f3ba2d1c77cbd90b21b087dfa/unifi_topology-1.0.8-py3-none-any.whl", hash = "sha256:72bf5b99733335bc25a18fb737a9f5bb2cbc9688d96ed69b9bf52a59a8cda421", size = 351474, upload-time = "2026-03-12T13:34:38.382Z" },
 ]
 
 [[package]]

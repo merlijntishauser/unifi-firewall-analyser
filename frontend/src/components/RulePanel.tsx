@@ -1,4 +1,4 @@
-import { useMemo, useReducer } from "react";
+import { useMemo, useReducer, useState } from "react";
 import type { FormEvent } from "react";
 import { api } from "../api/client";
 import type { ZonePair, Rule, Finding, SimulateResponse } from "../api/types";
@@ -92,6 +92,90 @@ function verdictColor(verdict: string | null): string {
     default:
       return "bg-gray-50 dark:bg-noc-raised border-gray-300 dark:border-noc-border text-gray-700 dark:text-noc-text-secondary";
   }
+}
+
+const DT_CLASS = "font-semibold text-gray-700 dark:text-noc-text";
+
+interface DetailRow {
+  label: string;
+  value: string;
+  mono?: boolean;
+  members?: string[];
+}
+
+function buildDetailRows(rule: Rule, sourceZoneName: string, destZoneName: string): DetailRow[] {
+  const rows: DetailRow[] = [
+    { label: "Action", value: rule.action, mono: true },
+    { label: "Protocol", value: rule.protocol || "any", mono: true },
+    { label: "Source", value: sourceZoneName },
+    { label: "Dst Ports", value: rule.port_ranges.length > 0 ? rule.port_ranges.join(", ") : "any", mono: true },
+    { label: "Dst IPs", value: rule.ip_ranges.length > 0 ? rule.ip_ranges.join(", ") : "any", mono: true },
+    { label: "Destination", value: destZoneName },
+  ];
+
+  const optional: [string, string, string[]?][] = [
+    ["Src Ports", rule.source_port_ranges.join(", ")],
+    ["Src IPs", rule.source_ip_ranges.join(", ")],
+    ["Src MACs", rule.source_mac_addresses.join(", ")],
+    ["Dst MACs", rule.destination_mac_addresses.join(", ")],
+    ["Dst Port Group", rule.destination_port_group, rule.destination_port_group_members],
+    ["Src Port Group", rule.source_port_group, rule.source_port_group_members],
+    ["Dst Addr Group", rule.destination_address_group, rule.destination_address_group_members],
+    ["Src Addr Group", rule.source_address_group, rule.source_address_group_members],
+    ["Conn State", rule.connection_state_type],
+    ["Schedule", rule.schedule],
+    ["IPSec", rule.match_ip_sec],
+  ];
+  for (const [label, value, members] of optional) {
+    if (value) rows.push({ label, value, mono: !members, members });
+  }
+
+  rows.push({ label: "Status", value: rule.enabled ? "Enabled" : "Disabled" });
+  rows.push({ label: "Logging", value: rule.connection_logging ? "Enabled" : "Disabled" });
+  if (rule.predefined) rows.push({ label: "Type", value: "Built-in (predefined)" });
+  rows.push({ label: "Index", value: String(rule.index), mono: true });
+  return rows;
+}
+
+function RuleDetails({ rule, sourceZoneName, destZoneName }: { rule: Rule; sourceZoneName: string; destZoneName: string }) {
+  const rows = buildDetailRows(rule, sourceZoneName, destZoneName);
+  return (
+    <div className="mt-2 pt-2 border-t border-gray-200 dark:border-noc-border text-gray-600 dark:text-noc-text-secondary">
+      {rule.description && (
+        <p className="mb-2 italic">{rule.description}</p>
+      )}
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+        {rows.map((row) => (
+          <DetailRowView key={row.label} row={row} />
+        ))}
+      </dl>
+      <div className="mt-2 font-mono text-[10px] text-gray-400 dark:text-noc-text-dim">
+        ID: {rule.id}
+      </div>
+    </div>
+  );
+}
+
+function DetailRowView({ row }: { row: DetailRow }) {
+  return (
+    <>
+      <dt className={DT_CLASS}>{row.label}</dt>
+      <dd className={row.mono ? "font-mono" : undefined}>
+        {row.members ? (
+          <>
+            <span>{row.value}</span>
+            {row.members.length > 0 && (
+              <span className="ml-1 font-mono text-gray-400 dark:text-noc-text-dim">
+                ({row.members.join(", ")})
+              </span>
+            )}
+          </>
+        ) : (
+          row.value
+        )}
+      </dd>
+    </>
+  );
 }
 
 function SimulationForm({
@@ -252,6 +336,7 @@ export default function RulePanel({
   onClose,
 }: RulePanelProps) {
   const [state, dispatch] = useReducer(rulePanelReducer, initialState);
+  const [expandedRuleId, setExpandedRuleId] = useState<string | null>(null);
 
   const sortedRules = useMemo(() => [...pair.rules].sort((a, b) => a.index - b.index), [pair.rules]);
 
@@ -352,49 +437,64 @@ export default function RulePanel({
           <h3 className="text-[10px] font-semibold text-gray-400 dark:text-noc-text-dim uppercase tracking-widest">
             Rules ({sortedRules.length})
           </h3>
-          {sortedRules.map((rule) => (
-            <div
-              key={rule.id}
-              className={`rounded-lg border p-2.5 text-xs ${actionColor(rule.action, rule.enabled)} ${
-                state.simResult?.matched_rule_id === rule.id
-                  ? "ring-2 ring-ub-blue"
-                  : ""
-              }`}
-            >
-              <div className="flex items-center justify-between gap-1">
-                <span className="font-medium text-gray-900 dark:text-noc-text truncate">
-                  {rule.index}. {rule.name}
-                </span>
-                <div className="flex items-center gap-1 shrink-0">
-                  {rule.predefined && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 dark:bg-noc-input text-gray-600 dark:text-noc-text-dim font-mono">
-                      built-in
-                    </span>
-                  )}
-                  <span
-                    className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${actionBadge(rule.action)}`}
-                  >
-                    {rule.action}
+          {sortedRules.map((rule, idx) => {
+            const isExpanded = expandedRuleId === rule.id;
+            return (
+              <div
+                key={rule.id}
+                className={`rounded-lg border p-2.5 text-xs cursor-pointer transition-colors ${actionColor(rule.action, rule.enabled)} ${
+                  state.simResult?.matched_rule_id === rule.id
+                    ? "ring-2 ring-ub-blue"
+                    : ""
+                }`}
+                onClick={() => setExpandedRuleId(isExpanded ? null : rule.id)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setExpandedRuleId(isExpanded ? null : rule.id);
+                  }
+                }}
+              >
+                <div className="flex items-center justify-between gap-1">
+                  <span className="font-medium text-gray-900 dark:text-noc-text truncate">
+                    {idx + 1}. {rule.name}
                   </span>
-                </div>
-              </div>
-              {(rule.protocol || rule.port_ranges.length > 0) && (
-                <div className="mt-1 font-mono text-gray-500 dark:text-noc-text-secondary">
-                  {rule.protocol && <span>{rule.protocol}</span>}
-                  {rule.port_ranges.length > 0 && (
-                    <span className="ml-1">
-                      port {rule.port_ranges.join(", ")}
+                  <div className="flex items-center gap-1 shrink-0">
+                    {rule.predefined && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 dark:bg-noc-input text-gray-600 dark:text-noc-text-dim font-mono">
+                        built-in
+                      </span>
+                    )}
+                    <span
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${actionBadge(rule.action)}`}
+                    >
+                      {rule.action}
                     </span>
-                  )}
+                  </div>
                 </div>
-              )}
-              {!rule.enabled && (
-                <div className="mt-1 text-gray-400 dark:text-noc-text-dim italic">
-                  disabled
-                </div>
-              )}
-            </div>
-          ))}
+                {(rule.protocol || rule.port_ranges.length > 0) && (
+                  <div className="mt-1 font-mono text-gray-500 dark:text-noc-text-secondary">
+                    {rule.protocol && <span>{rule.protocol}</span>}
+                    {rule.port_ranges.length > 0 && (
+                      <span className="ml-1">
+                        port {rule.port_ranges.join(", ")}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {!rule.enabled && (
+                  <div className="mt-1 text-gray-400 dark:text-noc-text-dim italic">
+                    disabled
+                  </div>
+                )}
+                {isExpanded && (
+                  <RuleDetails rule={rule} sourceZoneName={sourceZoneName} destZoneName={destZoneName} />
+                )}
+              </div>
+            );
+          })}
         </div>
 
         {/* Packet simulation form */}

@@ -9,7 +9,7 @@ dependencies = [
     "uvicorn>=0.34.0",
     "pydantic>=2.10.0",
     "pydantic-settings>=2.7.0",
-    "unifi-topology>=1.0.7",
+    "unifi-topology>=1.0.8",
 ]
 
 [dependency-groups]

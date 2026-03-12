@@ -186,6 +186,22 @@ def _clean_credentials() -> Iterator[None]:
     clear_runtime_credentials()
 
 
+MOCK_RAW_GROUPS: list[dict[str, object]] = [
+    {
+        "_id": "group-dns-ports",
+        "name": "DNS Ports",
+        "group_type": "port-group",
+        "group_members": ["53"],
+    },
+    {
+        "_id": "group-dns-servers",
+        "name": "DNS Servers",
+        "group_type": "address-group",
+        "group_members": ["1.1.1.1", "8.8.8.8"],
+    },
+]
+
+
 @pytest.fixture(autouse=True)
 def _mock_unifi_topology() -> Iterator[None]:
     """Mock unifi-topology API calls so tests don't need a real controller."""
@@ -201,6 +217,10 @@ def _mock_unifi_topology() -> Iterator[None]:
         patch(
             "app.services.firewall.fetch_networks",
             return_value=MOCK_RAW_NETWORKS,
+        ),
+        patch(
+            "app.services.firewall.fetch_firewall_groups",
+            return_value=MOCK_RAW_GROUPS,
         ),
     ):
         yield
