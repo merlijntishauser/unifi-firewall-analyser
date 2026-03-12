@@ -153,17 +153,6 @@ def _check_wide_port_range(rule: Rule) -> Finding | None:
     return None
 
 
-def _check_predefined(rule: Rule) -> Finding | None:
-    if rule.predefined:
-        return Finding(
-            id="predefined-unreviewed",
-            severity="low",
-            title="Predefined rule",
-            description=f"Rule '{rule.name}' is a built-in predefined rule.",
-            rule_id=rule.id,
-        )
-    return None
-
 
 def _check_shadowed(rules: list[Rule]) -> list[Finding]:
     findings: list[Finding] = []
@@ -224,7 +213,6 @@ def analyze_zone_pair(
                 ),
                 _check_disabled_block,
                 _check_wide_port_range,
-                _check_predefined,
             ):
                 finding = check(rule)
                 if finding is not None:
