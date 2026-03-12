@@ -1,5 +1,5 @@
 from app.models import Network, Rule, Zone
-from app.services.simulator import _port_matches, _protocol_matches, evaluate_rules, resolve_zone
+from app.services.simulator import _ip_matches, _port_matches, _protocol_matches, evaluate_rules, resolve_zone
 
 
 def _make_zones() -> list[Zone]:
@@ -314,6 +314,256 @@ class TestPortMatches:
 
     def test_invalid_single_port_skipped(self) -> None:
         assert _port_matches(["abc"], 80) is False
+
+
+class TestIpMatchesHelper:
+    def test_empty_ranges_matches_all(self) -> None:
+        assert _ip_matches([], "10.0.0.1") is True
+
+    def test_none_ip_matches_all(self) -> None:
+        assert _ip_matches(["10.0.0.0/8"], None) is True
+
+    def test_invalid_packet_ip(self) -> None:
+        assert _ip_matches(["10.0.0.0/8"], "not-an-ip") is False
+
+
+class TestIpMatching:
+    def test_source_ip_matches_ip_ranges(self) -> None:
+        rules = [
+            Rule(
+                id="r1",
+                name="Allow from subnet",
+                enabled=True,
+                action="ALLOW",
+                source_zone_id="zone-a",
+                destination_zone_id="zone-b",
+                protocol="tcp",
+                port_ranges=["443"],
+                ip_ranges=["10.0.1.0/24"],
+                index=100,
+            )
+        ]
+        result = evaluate_rules(rules, "zone-a", "zone-b", protocol="tcp", port=443, source_ip="10.0.1.50")
+        assert result.verdict == "ALLOW"
+
+    def test_source_ip_no_match_ip_ranges(self) -> None:
+        rules = [
+            Rule(
+                id="r1",
+                name="Allow from subnet",
+                enabled=True,
+                action="ALLOW",
+                source_zone_id="zone-a",
+                destination_zone_id="zone-b",
+                protocol="tcp",
+                port_ranges=["443"],
+                ip_ranges=["10.0.1.0/24"],
+                index=100,
+            )
+        ]
+        result = evaluate_rules(rules, "zone-a", "zone-b", protocol="tcp", port=443, source_ip="10.0.2.50")
+        assert result.verdict == "BLOCK"
+        assert result.default_policy_used is True
+
+    def test_source_ip_matches_source_ip_ranges(self) -> None:
+        rules = [
+            Rule(
+                id="r1",
+                name="Allow from source",
+                enabled=True,
+                action="ALLOW",
+                source_zone_id="zone-a",
+                destination_zone_id="zone-b",
+                source_ip_ranges=["192.168.1.100"],
+                index=100,
+            )
+        ]
+        result = evaluate_rules(rules, "zone-a", "zone-b", source_ip="192.168.1.100")
+        assert result.verdict == "ALLOW"
+
+    def test_source_ip_matches_address_group(self) -> None:
+        rules = [
+            Rule(
+                id="r1",
+                name="Allow from group",
+                enabled=True,
+                action="ALLOW",
+                source_zone_id="zone-a",
+                destination_zone_id="zone-b",
+                source_address_group_members=["10.0.0.0/8"],
+                index=100,
+            )
+        ]
+        result = evaluate_rules(rules, "zone-a", "zone-b", source_ip="10.5.5.5")
+        assert result.verdict == "ALLOW"
+
+    def test_destination_ip_matches_address_group(self) -> None:
+        rules = [
+            Rule(
+                id="r1",
+                name="Allow to group",
+                enabled=True,
+                action="ALLOW",
+                source_zone_id="zone-a",
+                destination_zone_id="zone-b",
+                destination_address_group_members=["172.16.0.0/12"],
+                index=100,
+            )
+        ]
+        result = evaluate_rules(rules, "zone-a", "zone-b", destination_ip="172.16.5.5")
+        assert result.verdict == "ALLOW"
+
+    def test_destination_ip_no_match(self) -> None:
+        rules = [
+            Rule(
+                id="r1",
+                name="Allow to group",
+                enabled=True,
+                action="ALLOW",
+                source_zone_id="zone-a",
+                destination_zone_id="zone-b",
+                destination_address_group_members=["172.16.0.0/12"],
+                index=100,
+            )
+        ]
+        result = evaluate_rules(rules, "zone-a", "zone-b", destination_ip="192.168.1.1")
+        assert result.verdict == "BLOCK"
+
+    def test_no_source_ip_skips_ip_check(self) -> None:
+        rules = [
+            Rule(
+                id="r1",
+                name="Allow from subnet",
+                enabled=True,
+                action="ALLOW",
+                source_zone_id="zone-a",
+                destination_zone_id="zone-b",
+                ip_ranges=["10.0.1.0/24"],
+                index=100,
+            )
+        ]
+        result = evaluate_rules(rules, "zone-a", "zone-b")
+        assert result.verdict == "ALLOW"
+
+    def test_invalid_ip_range_skipped(self) -> None:
+        rules = [
+            Rule(
+                id="r1",
+                name="Bad range",
+                enabled=True,
+                action="ALLOW",
+                source_zone_id="zone-a",
+                destination_zone_id="zone-b",
+                ip_ranges=["not-a-cidr"],
+                index=100,
+            )
+        ]
+        result = evaluate_rules(rules, "zone-a", "zone-b", source_ip="10.0.1.1")
+        assert result.verdict == "BLOCK"
+
+
+class TestPortGroupMatching:
+    def test_destination_port_group_members(self) -> None:
+        rules = [
+            Rule(
+                id="r1",
+                name="Allow via group",
+                enabled=True,
+                action="ALLOW",
+                source_zone_id="zone-a",
+                destination_zone_id="zone-b",
+                protocol="tcp",
+                destination_port_group_members=["80", "443"],
+                index=100,
+            )
+        ]
+        result = evaluate_rules(rules, "zone-a", "zone-b", protocol="tcp", port=443)
+        assert result.verdict == "ALLOW"
+
+    def test_destination_port_group_no_match(self) -> None:
+        rules = [
+            Rule(
+                id="r1",
+                name="Allow via group",
+                enabled=True,
+                action="ALLOW",
+                source_zone_id="zone-a",
+                destination_zone_id="zone-b",
+                protocol="tcp",
+                destination_port_group_members=["80", "443"],
+                index=100,
+            )
+        ]
+        result = evaluate_rules(rules, "zone-a", "zone-b", protocol="tcp", port=8080)
+        assert result.verdict == "BLOCK"
+
+    def test_source_port_matching(self) -> None:
+        rules = [
+            Rule(
+                id="r1",
+                name="Allow from source port",
+                enabled=True,
+                action="ALLOW",
+                source_zone_id="zone-a",
+                destination_zone_id="zone-b",
+                protocol="tcp",
+                source_port_ranges=["1024-65535"],
+                index=100,
+            )
+        ]
+        result = evaluate_rules(rules, "zone-a", "zone-b", protocol="tcp", source_port=50000)
+        assert result.verdict == "ALLOW"
+
+    def test_source_port_no_match(self) -> None:
+        rules = [
+            Rule(
+                id="r1",
+                name="Allow from source port",
+                enabled=True,
+                action="ALLOW",
+                source_zone_id="zone-a",
+                destination_zone_id="zone-b",
+                protocol="tcp",
+                source_port_ranges=["1024-65535"],
+                index=100,
+            )
+        ]
+        result = evaluate_rules(rules, "zone-a", "zone-b", protocol="tcp", source_port=80)
+        assert result.verdict == "BLOCK"
+
+    def test_source_port_group_members(self) -> None:
+        rules = [
+            Rule(
+                id="r1",
+                name="Allow from port group",
+                enabled=True,
+                action="ALLOW",
+                source_zone_id="zone-a",
+                destination_zone_id="zone-b",
+                protocol="tcp",
+                source_port_group_members=["8080", "8443"],
+                index=100,
+            )
+        ]
+        result = evaluate_rules(rules, "zone-a", "zone-b", protocol="tcp", source_port=8080)
+        assert result.verdict == "ALLOW"
+
+    def test_no_source_port_skips_check(self) -> None:
+        rules = [
+            Rule(
+                id="r1",
+                name="Allow from source port",
+                enabled=True,
+                action="ALLOW",
+                source_zone_id="zone-a",
+                destination_zone_id="zone-b",
+                protocol="tcp",
+                source_port_ranges=["1024-65535"],
+                index=100,
+            )
+        ]
+        result = evaluate_rules(rules, "zone-a", "zone-b", protocol="tcp")
+        assert result.verdict == "ALLOW"
 
 
 class TestResolveZoneEdgeCases:
