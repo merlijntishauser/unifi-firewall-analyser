@@ -40,10 +40,18 @@ jobs:
       - run: npx eslint src/ --no-warn-ignored
       - run: npx vitest run --coverage
       - name: React Doctor
-        uses: nicholasgriffintn/react-doctor-action@v1
+        id: react_doctor
+        uses: millionco/react-doctor@main
         with:
           directory: frontend
-          threshold: 100
+      - name: Check React Doctor score
+        run: |
+          score="${{ steps.react_doctor.outputs.score }}"
+          echo "React Doctor score: ${score:-unknown}/100"
+          if [ -z "$score" ] || [ "$score" -lt 100 ]; then
+            echo "::error::React Doctor score below 100 (got: ${score:-unknown})"
+            exit 1
+          fi
 
   complexity:
     runs-on: ubuntu-latest
