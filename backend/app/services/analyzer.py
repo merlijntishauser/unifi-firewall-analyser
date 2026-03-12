@@ -213,6 +213,64 @@ def _check_no_connection_state(rule: Rule) -> Finding | None:
     return None
 
 
+_BROAD_ADDRESSES = {"0.0.0.0/0", "::/0", "any"}
+
+
+def _check_broad_address_group(rule: Rule) -> Finding | None:
+    if not rule.enabled or rule.action != "ALLOW":
+        return None
+    for group_name, members in [
+        (rule.source_address_group, rule.source_address_group_members),
+        (rule.destination_address_group, rule.destination_address_group_members),
+    ]:
+        if any(m.lower() in _BROAD_ADDRESSES for m in members):
+            return Finding(
+                id="broad-address-group",
+                severity="medium",
+                title="Address group contains unrestricted address",
+                description=f"Rule '{rule.name}' uses address group '{group_name}' containing an unrestricted address.",
+                rationale=(
+                    f"Address group '{group_name}' contains a wildcard address (e.g. 0.0.0.0/0) "
+                    "which matches all hosts. The group provides no actual restriction."
+                ),
+                rule_id=rule.id,
+            )
+    return None
+
+
+def _check_missing_block_logging(rule: Rule) -> Finding | None:
+    if rule.enabled and rule.action in _BLOCK_ACTIONS and not rule.connection_logging:
+        return Finding(
+            id="missing-block-logging",
+            severity="low",
+            title="Block rule without logging",
+            description=f"Block rule '{rule.name}' has logging disabled.",
+            rationale=(
+                "Block rules without logging make it difficult to detect and investigate "
+                "denied traffic. Enabling logging provides an audit trail for troubleshooting "
+                "and security review."
+            ),
+            rule_id=rule.id,
+        )
+    return None
+
+
+def _check_schedule_dependent_allow(rule: Rule) -> Finding | None:
+    if rule.enabled and rule.action == "ALLOW" and rule.schedule:
+        return Finding(
+            id="schedule-dependent-allow",
+            severity="low",
+            title="Schedule-dependent allow rule",
+            description=f"Rule '{rule.name}' allows traffic only during schedule '{rule.schedule}'.",
+            rationale=(
+                "Schedule-dependent rules create time windows where access policy changes. "
+                "Security posture varies by time of day, which should be explicitly acknowledged."
+            ),
+            rule_id=rule.id,
+        )
+    return None
+
+
 def _check_wide_port_range(rule: Rule) -> Finding | None:
     if rule.enabled and rule.action == "ALLOW":
         for pr in destination_port_constraints(rule):
@@ -369,7 +427,14 @@ def analyze_zone_pair(
             if broad_allow_finding is not None:
                 findings.append(broad_allow_finding)
 
-            for check in (_check_disabled_block, _check_wide_port_range, _check_no_connection_state):
+            for check in (
+                _check_disabled_block,
+                _check_wide_port_range,
+                _check_no_connection_state,
+                _check_broad_address_group,
+                _check_missing_block_logging,
+                _check_schedule_dependent_allow,
+            ):
                 finding = check(rule)
                 if finding is not None:
                     findings.append(finding)
