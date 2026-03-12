@@ -257,40 +257,40 @@ describe("RulePanel", () => {
       expect(screen.queryByText("Type")).not.toBeInTheDocument();
     });
 
-    it("shows source port group with resolved members", () => {
+    it("merges source port group into Src Ports with group name annotation", () => {
       renderPanel(makePair([makeRule({
         source_port_group: "Web Ports",
         source_port_group_members: ["80", "443", "8080"],
       })]));
 
       fireEvent.click(screen.getByRole("button", { name: /1\. Test Rule/ }));
-      expect(screen.getByText("Src Port Group")).toBeInTheDocument();
+      expect(screen.getByText("Src Ports")).toBeInTheDocument();
+      expect(screen.getByText("80, 443, 8080")).toBeInTheDocument();
       expect(screen.getByText("Web Ports")).toBeInTheDocument();
-      expect(screen.getByText("(80, 443, 8080)")).toBeInTheDocument();
     });
 
-    it("shows destination port group with resolved members", () => {
+    it("merges destination port group into Dst Ports with group name", () => {
       renderPanel(makePair([makeRule({
         destination_port_group: "DNS Ports",
         destination_port_group_members: ["53"],
       })]));
 
       fireEvent.click(screen.getByRole("button", { name: /1\. Test Rule/ }));
-      expect(screen.getByText("Dst Port Group")).toBeInTheDocument();
+      expect(screen.getByText("Dst Ports")).toBeInTheDocument();
+      expect(screen.getByText("53")).toBeInTheDocument();
       expect(screen.getByText("DNS Ports")).toBeInTheDocument();
-      expect(screen.getByText("(53)")).toBeInTheDocument();
     });
 
-    it("shows address groups with resolved members", () => {
+    it("merges destination address group into Dst IPs with group name", () => {
       renderPanel(makePair([makeRule({
         destination_address_group: "DNS Servers",
         destination_address_group_members: ["1.1.1.1", "8.8.8.8"],
       })]));
 
       fireEvent.click(screen.getByRole("button", { name: /1\. Test Rule/ }));
-      expect(screen.getByText("Dst Addr Group")).toBeInTheDocument();
+      expect(screen.getByText("Dst IPs")).toBeInTheDocument();
+      expect(screen.getByText("1.1.1.1, 8.8.8.8")).toBeInTheDocument();
       expect(screen.getByText("DNS Servers")).toBeInTheDocument();
-      expect(screen.getByText("(1.1.1.1, 8.8.8.8)")).toBeInTheDocument();
     });
 
     it("shows connection state when set", () => {
@@ -342,24 +342,62 @@ describe("RulePanel", () => {
       expect(screen.getByText("11:22:33:44:55:66")).toBeInTheDocument();
     });
 
-    it("shows source address group with resolved members", () => {
+    it("merges source address group into Src IPs with group name", () => {
       renderPanel(makePair([makeRule({
         source_address_group: "Trusted IPs",
         source_address_group_members: ["10.0.0.1", "10.0.0.2"],
       })]));
 
       fireEvent.click(screen.getByRole("button", { name: /1\. Test Rule/ }));
-      expect(screen.getByText("Src Addr Group")).toBeInTheDocument();
+      expect(screen.getByText("Src IPs")).toBeInTheDocument();
+      expect(screen.getByText("10.0.0.1, 10.0.0.2")).toBeInTheDocument();
       expect(screen.getByText("Trusted IPs")).toBeInTheDocument();
-      expect(screen.getByText("(10.0.0.1, 10.0.0.2)")).toBeInTheDocument();
     });
 
-    it("shows IPSec match when set", () => {
+    it("shows IPSec as Required for MATCH_IPSEC", () => {
       renderPanel(makePair([makeRule({ match_ip_sec: "MATCH_IPSEC" })]));
 
       fireEvent.click(screen.getByRole("button", { name: /1\. Test Rule/ }));
       expect(screen.getByText("IPSec")).toBeInTheDocument();
-      expect(screen.getByText("MATCH_IPSEC")).toBeInTheDocument();
+      expect(screen.getByText("Required")).toBeInTheDocument();
+    });
+
+    it("shows IPSec as Excluded for MATCH_NON_IPSEC", () => {
+      renderPanel(makePair([makeRule({ match_ip_sec: "MATCH_NON_IPSEC" })]));
+
+      fireEvent.click(screen.getByRole("button", { name: /1\. Test Rule/ }));
+      expect(screen.getByText("IPSec")).toBeInTheDocument();
+      expect(screen.getByText("Excluded")).toBeInTheDocument();
+    });
+
+    it("hides IPSec for non-meaningful values", () => {
+      renderPanel(makePair([makeRule({ match_ip_sec: "False" })]));
+
+      fireEvent.click(screen.getByRole("button", { name: /1\. Test Rule/ }));
+      expect(screen.queryByText("IPSec")).not.toBeInTheDocument();
+    });
+
+    it("hides schedule when mode is ALWAYS", () => {
+      renderPanel(makePair([makeRule({ schedule: "{'mode': 'ALWAYS'}" })]));
+
+      fireEvent.click(screen.getByRole("button", { name: /1\. Test Rule/ }));
+      expect(screen.queryByText("Schedule")).not.toBeInTheDocument();
+    });
+
+    it("shows parsed schedule mode for non-ALWAYS JSON schedules", () => {
+      renderPanel(makePair([makeRule({ schedule: "{'mode': 'WEEKDAYS'}" })]));
+
+      fireEvent.click(screen.getByRole("button", { name: /1\. Test Rule/ }));
+      expect(screen.getByText("Schedule")).toBeInTheDocument();
+      expect(screen.getByText("WEEKDAYS")).toBeInTheDocument();
+    });
+
+    it("shows raw IPSec value for unknown match types", () => {
+      renderPanel(makePair([makeRule({ match_ip_sec: "CUSTOM_VALUE" })]));
+
+      fireEvent.click(screen.getByRole("button", { name: /1\. Test Rule/ }));
+      expect(screen.getByText("IPSec")).toBeInTheDocument();
+      expect(screen.getByText("CUSTOM_VALUE")).toBeInTheDocument();
     });
 
     it("hides optional fields when empty", () => {
@@ -370,10 +408,6 @@ describe("RulePanel", () => {
       expect(screen.queryByText("Src IPs")).not.toBeInTheDocument();
       expect(screen.queryByText("Src MACs")).not.toBeInTheDocument();
       expect(screen.queryByText("Dst MACs")).not.toBeInTheDocument();
-      expect(screen.queryByText("Dst Port Group")).not.toBeInTheDocument();
-      expect(screen.queryByText("Src Port Group")).not.toBeInTheDocument();
-      expect(screen.queryByText("Dst Addr Group")).not.toBeInTheDocument();
-      expect(screen.queryByText("Src Addr Group")).not.toBeInTheDocument();
       expect(screen.queryByText("Conn State")).not.toBeInTheDocument();
       expect(screen.queryByText("Schedule")).not.toBeInTheDocument();
       expect(screen.queryByText("IPSec")).not.toBeInTheDocument();
