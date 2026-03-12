@@ -35,6 +35,7 @@ class AuthStatusResponse(BaseModel):
     configured: bool
     source: Literal["env", "runtime", "none"]
     url: str
+    username: str
 
 
 @router.post("/login")
@@ -61,6 +62,6 @@ async def status() -> AuthStatusResponse:
     source = get_credential_source()
 
     if config is None:
-        return AuthStatusResponse(configured=False, source="none", url="")
+        return AuthStatusResponse(configured=False, source="none", url="", username="")
 
-    return AuthStatusResponse(configured=True, source=source, url=config.url)
+    return AuthStatusResponse(configured=True, source=source, url=config.url, username=config.username)

@@ -137,6 +137,7 @@ export interface AuthStatus {
   configured: boolean;
   source: "env" | "runtime" | "none";
   url: string;
+  username: string;
 }
 
 export interface ZoneFilter {

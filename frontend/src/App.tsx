@@ -11,6 +11,18 @@ import ZoneGraph from "./components/ZoneGraph";
 import ZoneMatrix from "./components/ZoneMatrix";
 import RulePanel from "./components/RulePanel";
 
+interface ConnectionInfo {
+  url: string;
+  username: string;
+  source: "env" | "runtime" | "none";
+}
+
+interface AiInfo {
+  configured: boolean;
+  provider: string;
+  model: string;
+}
+
 interface AppState {
   authed: boolean;
   authLoading: boolean;
@@ -20,6 +32,8 @@ interface AppState {
   focusZoneIds: string[] | null;
   settingsOpen: boolean;
   aiConfigured: boolean;
+  connectionInfo: ConnectionInfo | null;
+  aiInfo: AiInfo;
   hiddenZoneIds: Set<string>;
 }
 
@@ -32,6 +46,8 @@ const initialAppState: AppState = {
   focusZoneIds: null,
   settingsOpen: false,
   aiConfigured: false,
+  connectionInfo: null,
+  aiInfo: { configured: false, provider: "", model: "" },
   hiddenZoneIds: new Set<string>(),
 };
 
@@ -50,7 +66,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
 
 function App() {
   const [state, dispatch] = useReducer(appReducer, initialAppState, initAppState);
-  const { authed, authLoading, colorMode, showHidden, selectedPair, focusZoneIds, settingsOpen, aiConfigured, hiddenZoneIds } = state;
+  const { authed, authLoading, colorMode, showHidden, selectedPair, focusZoneIds, settingsOpen, aiConfigured, connectionInfo, aiInfo, hiddenZoneIds } = state;
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", colorMode === "dark");
@@ -60,7 +76,10 @@ function App() {
 
   const refreshAiConfig = useCallback(() => {
     api.getAiConfig()
-      .then((config) => dispatch({ aiConfigured: config.has_key }))
+      .then((config) => dispatch({
+        aiConfigured: config.has_key,
+        aiInfo: { configured: config.has_key, provider: config.provider_type, model: config.model },
+      }))
       .catch(() => {});
   }, []);
 
@@ -76,7 +95,10 @@ function App() {
     api
       .getAuthStatus()
       .then((status) => {
-        dispatch({ authed: status.configured });
+        dispatch({
+          authed: status.configured,
+          connectionInfo: status.configured ? { url: status.url, username: status.username, source: status.source } : null,
+        });
         if (status.configured) {
           refreshAiConfig();
           refreshZoneFilter();
@@ -188,6 +210,8 @@ function App() {
         loading={loading}
         onLogout={handleLogout}
         onOpenSettings={() => dispatch({ settingsOpen: true })}
+        connectionInfo={connectionInfo}
+        aiInfo={aiInfo}
       />
       {settingsOpen && <SettingsModal onClose={() => { dispatch({ settingsOpen: false }); refreshAiConfig(); }} />}
       {error && (

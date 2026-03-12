@@ -14,6 +14,8 @@ describe("Toolbar", () => {
     loading: false,
     onLogout: vi.fn(),
     onOpenSettings: vi.fn(),
+    connectionInfo: { url: "https://unifi.local", username: "admin", source: "runtime" as const },
+    aiInfo: { configured: false, provider: "", model: "" },
   };
 
   function renderToolbar(overrides = {}) {
@@ -124,5 +126,32 @@ describe("Toolbar", () => {
     renderToolbar({ onOpenSettings: handler });
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows connected Controller badge with tooltip", () => {
+    renderToolbar({ connectionInfo: { url: "https://unifi.local", username: "admin", source: "runtime" as const } });
+    expect(screen.getByText("Controller")).toBeInTheDocument();
+    expect(screen.getByText(/Connected to: https:\/\/unifi\.local/)).toBeInTheDocument();
+    expect(screen.getByText(/As: admin/)).toBeInTheDocument();
+    expect(screen.getByText(/Config from: runtime/)).toBeInTheDocument();
+  });
+
+  it("shows disconnected Controller badge when connectionInfo is null", () => {
+    renderToolbar({ connectionInfo: null });
+    expect(screen.getByText("Controller")).toBeInTheDocument();
+    expect(screen.getByText("Not connected")).toBeInTheDocument();
+  });
+
+  it("shows active AI badge with provider and model tooltip", () => {
+    renderToolbar({ aiInfo: { configured: true, provider: "anthropic", model: "claude-sonnet-4-20250514" } });
+    expect(screen.getByText("AI")).toBeInTheDocument();
+    expect(screen.getByText(/AI LLM: anthropic/)).toBeInTheDocument();
+    expect(screen.getByText(/Model: claude-sonnet-4-20250514/)).toBeInTheDocument();
+  });
+
+  it("shows inactive AI badge when not configured", () => {
+    renderToolbar({ aiInfo: { configured: false, provider: "", model: "" } });
+    expect(screen.getByText("AI")).toBeInTheDocument();
+    expect(screen.getByText("Not configured")).toBeInTheDocument();
   });
 });
