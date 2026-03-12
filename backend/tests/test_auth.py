@@ -17,6 +17,7 @@ async def test_status_no_credentials(client: AsyncClient) -> None:
     assert data["configured"] is False
     assert data["source"] == "none"
     assert data["url"] == ""
+    assert data["username"] == ""
 
 
 @pytest.mark.anyio
@@ -41,6 +42,7 @@ async def test_login_stores_credentials(client: AsyncClient) -> None:
     assert status_data["configured"] is True
     assert status_data["source"] == "runtime"
     assert status_data["url"] == "https://unifi.example.com"
+    assert status_data["username"] == "admin"
 
 
 @pytest.mark.anyio

@@ -606,7 +606,7 @@ describe("App", () => {
   });
 
   it("shows ZoneMatrix by default (no focusZone)", async () => {
-    mockGetAuthStatus.mockResolvedValue({ configured: true, source: "env", url: "https://unifi.local" });
+    mockGetAuthStatus.mockResolvedValue({ configured: true, source: "env", url: "https://unifi.local", username: "admin" });
     mockGetZones.mockResolvedValue(testZones);
     mockGetZonePairs.mockResolvedValue(testZonePairs);
 
@@ -619,7 +619,7 @@ describe("App", () => {
   });
 
   it("navigates to graph view when zone header is clicked in matrix", async () => {
-    mockGetAuthStatus.mockResolvedValue({ configured: true, source: "env", url: "https://unifi.local" });
+    mockGetAuthStatus.mockResolvedValue({ configured: true, source: "env", url: "https://unifi.local", username: "admin" });
     mockGetZones.mockResolvedValue(testZones);
     mockGetZonePairs.mockResolvedValue(testZonePairs);
 
@@ -639,7 +639,7 @@ describe("App", () => {
   });
 
   it("returns to matrix view when back button is clicked", async () => {
-    mockGetAuthStatus.mockResolvedValue({ configured: true, source: "env", url: "https://unifi.local" });
+    mockGetAuthStatus.mockResolvedValue({ configured: true, source: "env", url: "https://unifi.local", username: "admin" });
     mockGetZones.mockResolvedValue(testZones);
     mockGetZonePairs.mockResolvedValue(testZonePairs);
 
@@ -663,7 +663,7 @@ describe("App", () => {
   });
 
   it("opens RulePanel and graph view when matrix cell is clicked", async () => {
-    mockGetAuthStatus.mockResolvedValue({ configured: true, source: "env", url: "https://unifi.local" });
+    mockGetAuthStatus.mockResolvedValue({ configured: true, source: "env", url: "https://unifi.local", username: "admin" });
     mockGetZones.mockResolvedValue(testZones);
     mockGetZonePairs.mockResolvedValue(testZonePairs);
 
@@ -683,7 +683,7 @@ describe("App", () => {
   });
 
   it("opens and closes settings modal", async () => {
-    mockGetAuthStatus.mockResolvedValue({ configured: true, source: "env", url: "https://unifi.local" });
+    mockGetAuthStatus.mockResolvedValue({ configured: true, source: "env", url: "https://unifi.local", username: "admin" });
     mockGetZones.mockResolvedValue([]);
     mockGetZonePairs.mockResolvedValue([]);
 
@@ -707,7 +707,7 @@ describe("App", () => {
   });
 
   it("refreshes AI config when settings modal closes", async () => {
-    mockGetAuthStatus.mockResolvedValue({ configured: true, source: "env", url: "https://unifi.local" });
+    mockGetAuthStatus.mockResolvedValue({ configured: true, source: "env", url: "https://unifi.local", username: "admin" });
     mockGetZones.mockResolvedValue([]);
     mockGetZonePairs.mockResolvedValue([]);
 
@@ -783,7 +783,7 @@ describe("App", () => {
   });
 
   it("renders MatrixSidebar in matrix view", async () => {
-    mockGetAuthStatus.mockResolvedValue({ configured: true, source: "env", url: "" });
+    mockGetAuthStatus.mockResolvedValue({ configured: true, source: "env", url: "", username: "admin" });
     mockGetZones.mockResolvedValue(testZones);
     mockGetZonePairs.mockResolvedValue([]);
 
@@ -797,7 +797,7 @@ describe("App", () => {
   });
 
   it("hides zone from matrix when unchecked in sidebar", async () => {
-    mockGetAuthStatus.mockResolvedValue({ configured: true, source: "env", url: "" });
+    mockGetAuthStatus.mockResolvedValue({ configured: true, source: "env", url: "", username: "admin" });
     mockGetZones.mockResolvedValue(testZones);
     mockGetZonePairs.mockResolvedValue([]);
 
