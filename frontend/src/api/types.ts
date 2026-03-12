@@ -53,6 +53,7 @@ export interface Finding {
   severity: "high" | "medium" | "low";
   title: string;
   description: string;
+  rationale?: string;
   rule_id: string | null;
   source: "static" | "ai";
 }
@@ -111,6 +112,7 @@ export interface SimulateRequest {
   dst_ip: string;
   protocol: string;
   port: number | null;
+  source_port?: number | null;
 }
 
 export interface RuleEvaluation {
@@ -119,6 +121,7 @@ export interface RuleEvaluation {
   matched: boolean;
   reason: string;
   skipped_disabled: boolean;
+  unresolvable_constraints?: string[];
 }
 
 export interface SimulateResponse {
@@ -131,6 +134,7 @@ export interface SimulateResponse {
   matched_rule_name: string | null;
   default_policy_used: boolean;
   evaluations: RuleEvaluation[];
+  assumptions?: string[];
 }
 
 export interface AuthStatus {
