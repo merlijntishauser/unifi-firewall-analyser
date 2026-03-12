@@ -55,5 +55,11 @@ test: ## Run tests via Docker
 react-doctor: ## Run React Doctor code quality check
 	@cd frontend && npx react-doctor . --yes
 
+e2e: ## Run Playwright e2e tests (starts Vite dev server automatically)
+	cd frontend && npx playwright test
+
+e2e-headed: ## Run e2e tests with visible browser
+	cd frontend && npx playwright test --headed
+
 ci: ## Run all CI checks locally
 	@./scripts/ci-checks.sh

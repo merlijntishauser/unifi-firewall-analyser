@@ -32,6 +32,7 @@ export default function MatrixCell({
 
   return (
     <button
+      data-testid="matrix-cell"
       onClick={onClick}
       className={`w-full h-full flex flex-col items-center justify-center text-xs font-medium rounded-lg border hover:ring-2 hover:ring-ub-blue/40 cursor-pointer transition-all ${color} ${isSelfPair ? "opacity-30" : ""}`}
     >
