@@ -15,6 +15,7 @@ from app.routers.auth import router as auth_router
 from app.routers.rules import router as rules_router
 from app.routers.settings import router as settings_router
 from app.routers.simulate import router as simulate_router
+from app.routers.zone_filter import router as zone_filter_router
 from app.routers.zones import router as zones_router
 
 logger = logging.getLogger(__name__)
@@ -138,6 +139,7 @@ app.include_router(zones_router)
 app.include_router(rules_router)
 app.include_router(simulate_router)
 app.include_router(settings_router)
+app.include_router(zone_filter_router)
 
 
 @app.get("/api/health")

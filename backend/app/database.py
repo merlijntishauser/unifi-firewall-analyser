@@ -24,6 +24,10 @@ CREATE TABLE IF NOT EXISTS ai_analysis_cache (
     findings TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS hidden_zones (
+    zone_id TEXT PRIMARY KEY
+);
 """
 
 
