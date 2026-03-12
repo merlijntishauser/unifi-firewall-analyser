@@ -127,11 +127,7 @@ const SIMULATE_RESPONSE = {
 // Route setup
 // ---------------------------------------------------------------------------
 
-export interface MockApiOptions {
-  authenticated?: boolean;
-}
-
-export async function mockApi(page: Page, options: MockApiOptions = {}): Promise<void> {
+export async function mockApi(page: Page, options: { authenticated?: boolean } = {}): Promise<void> {
   const { authenticated = true } = options;
 
   await page.route("**/api/auth/status", (route) =>
