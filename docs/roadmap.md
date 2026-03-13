@@ -66,25 +66,26 @@ Done looks like:
 
 - The app can explain its conclusions on realistic rule sets, and false-positive/false-negative drift is measurably lower on fixture-based regression tests.
 
-### 2. Harden secrets, auth, and deployment boundaries
+### 2. Harden secrets, auth, and deployment boundaries -- DONE
 
 Priority: P0
 
-Why this is next:
+Shipped:
 
-- UniFi credentials are shared through runtime process state, and AI keys are currently stored in SQLite.
-- The app now has a simple single-container deployment path, which increases the importance of secure defaults.
-- Any future write operations should not be built on top of the current trust boundary unchanged.
+- Production secrets load from env vars (`AI_API_KEY`, `UNIFI_PASS`, `APP_PASSWORD`) or secret-file providers (`AI_API_KEY_FILE`), with env key fallback when DB config stores only provider/model.
+- Application auth gate via `APP_PASSWORD` with HMAC-signed session cookies, constant-time comparison, and configurable TTL. Passphrase screen in frontend.
+- CORS restricted to Vite dev ports in development, fully disabled in production (same-origin via static file serving).
+- Settings UI shows env-sourced config clearly: disabled fields, provider-specific key indicator, "Loaded from environment" placeholder, conditional Delete button.
+- Comprehensive deployment documentation covering env vars, Docker Compose, Docker secrets, and Traefik reverse proxy with TLS.
 
-What to ship:
+Related design:
 
-- Move production secrets toward env or secret-file providers, and avoid plaintext secret storage as the default production path.
-- Add an explicit application auth/session model for non-local deployments before enabling mutation features.
-- Tighten deployment controls: trusted origins/CORS configuration, outbound AI URL validation or allowlists, and secret redaction in logs and errors.
+- [Secrets, Auth, and Hardening Design](plans/2026-03-13-secrets-auth-hardening-design.md)
 
-Done looks like:
+#### Future: Outbound URL validation and log redaction
 
-- Production deployments have a clear, documented security model, and the app no longer relies on plaintext stored secrets for its default hardened path.
+- Add HTTPS enforcement and domain allowlist for AI `base_url` to prevent credential leakage to unintended hosts.
+- Audit and redact sensitive data (API keys, response bodies) from server-side log output.
 
 ### 3. Add end-to-end confidence and upgrade safety
 
