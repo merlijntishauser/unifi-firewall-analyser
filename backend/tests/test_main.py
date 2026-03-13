@@ -1,6 +1,5 @@
 """Tests for app startup (lifespan)."""
 
-import logging
 from pathlib import Path
 from unittest.mock import patch
 
@@ -9,14 +8,10 @@ from fastapi import FastAPI
 from httpx import AsyncClient
 
 from app.main import (
-    HealthcheckAccessFilter,
     _check_plaintext_db_key,
-    _configure_access_log_filters,
     _get_app_access_url,
     _get_frontend_dist_dir,
     _get_frontend_response,
-    _is_enabled,
-    _is_healthcheck_access_log,
     _log_startup_banner,
     lifespan,
 )
@@ -28,60 +23,6 @@ async def test_lifespan_calls_init_db() -> None:
     with patch("app.main.init_db") as mock_init:
         async with lifespan(test_app):
             mock_init.assert_called_once()
-
-
-def test_is_enabled_recognizes_truthy_values() -> None:
-    assert _is_enabled("true") is True
-    assert _is_enabled("1") is True
-    assert _is_enabled("yes") is True
-    assert _is_enabled("on") is True
-    assert _is_enabled("false") is False
-    assert _is_enabled(None) is False
-
-
-def test_healthcheck_filter_matches_uvicorn_health_log() -> None:
-    record = logging.LogRecord(
-        name="uvicorn.access",
-        level=logging.INFO,
-        pathname=__file__,
-        lineno=1,
-        msg='%s - "%s %s HTTP/%s" %d',
-        args=("127.0.0.1:12345", "GET", "/api/health", "1.1", 200),
-        exc_info=None,
-    )
-
-    assert _is_healthcheck_access_log(record) is True
-    assert HealthcheckAccessFilter().filter(record) is False
-
-
-def test_healthcheck_filter_allows_other_access_logs() -> None:
-    record = logging.LogRecord(
-        name="uvicorn.access",
-        level=logging.INFO,
-        pathname=__file__,
-        lineno=1,
-        msg='%s - "%s %s HTTP/%s" %d',
-        args=("127.0.0.1:12345", "GET", "/api/zones", "1.1", 200),
-        exc_info=None,
-    )
-
-    assert _is_healthcheck_access_log(record) is False
-    assert HealthcheckAccessFilter().filter(record) is True
-
-
-def test_healthcheck_filter_uses_message_fallback() -> None:
-    record = logging.LogRecord(
-        name="uvicorn.access",
-        level=logging.INFO,
-        pathname=__file__,
-        lineno=1,
-        msg='127.0.0.1 - "GET /api/health HTTP/1.1" 200 OK',
-        args=(),
-        exc_info=None,
-    )
-
-    assert _is_healthcheck_access_log(record) is True
-    assert HealthcheckAccessFilter().filter(record) is False
 
 
 def test_get_app_access_url_defaults_to_localhost(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -104,28 +45,6 @@ def test_get_frontend_dist_dir_defaults_to_repo_frontend_dist(monkeypatch: pytes
 
     assert dist_dir.name == "dist"
     assert dist_dir.parent.name == "frontend"
-
-
-def test_configure_access_log_filters_only_when_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
-    access_logger = logging.getLogger("uvicorn.access")
-    original_filters = list(access_logger.filters)
-    access_logger.filters.clear()
-
-    try:
-        monkeypatch.delenv("SUPPRESS_HEALTHCHECK_ACCESS_LOGS", raising=False)
-        _configure_access_log_filters()
-        assert access_logger.filters == []
-
-        monkeypatch.setenv("SUPPRESS_HEALTHCHECK_ACCESS_LOGS", "true")
-        _configure_access_log_filters()
-        assert len(access_logger.filters) == 1
-        assert isinstance(access_logger.filters[0], HealthcheckAccessFilter)
-
-        _configure_access_log_filters()
-        assert len(access_logger.filters) == 1
-    finally:
-        access_logger.filters.clear()
-        access_logger.filters.extend(original_filters)
 
 
 def test_log_startup_banner_logs_ascii_art(monkeypatch: pytest.MonkeyPatch) -> None:

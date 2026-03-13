@@ -13,7 +13,7 @@ from unifi_topology.adapters.unifi_api import UnifiApiError
 from app.config import settings as app_settings
 from app.database import DEFAULT_DB_PATH, init_db
 from app.logging import configure_logging
-from app.middleware import AppAuthMiddleware
+from app.middleware import AccessLogMiddleware, AppAuthMiddleware
 from app.routers.analyze import router as analyze_router
 from app.routers.auth import router as auth_router
 from app.routers.rules import router as rules_router
@@ -24,32 +24,6 @@ from app.routers.zones import router as zones_router
 
 log = structlog.get_logger()
 startup_logger = logging.getLogger("uvicorn.error")
-
-
-def _is_enabled(value: str | None) -> bool:
-    return value is not None and value.lower() in {"1", "true", "yes", "on"}
-
-
-def _is_healthcheck_access_log(record: logging.LogRecord) -> bool:
-    args = record.args
-    if isinstance(args, tuple) and len(args) >= 3 and isinstance(args[2], str):
-        return args[2].startswith("/api/health")
-
-    return "/api/health" in record.getMessage()
-
-
-class HealthcheckAccessFilter(logging.Filter):
-    def filter(self, record: logging.LogRecord) -> bool:
-        return not _is_healthcheck_access_log(record)
-
-
-def _configure_access_log_filters() -> None:
-    if not _is_enabled(os.environ.get("SUPPRESS_HEALTHCHECK_ACCESS_LOGS")):
-        return
-
-    access_logger = logging.getLogger("uvicorn.access")
-    if not any(isinstance(existing_filter, HealthcheckAccessFilter) for existing_filter in access_logger.filters):
-        access_logger.addFilter(HealthcheckAccessFilter())
 
 
 def _get_app_access_url() -> str:
@@ -144,11 +118,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 configure_logging()
-_configure_access_log_filters()
 
 app = FastAPI(title="UniFi Firewall Analyser", lifespan=lifespan)
 
 app.add_middleware(AppAuthMiddleware)
+app.add_middleware(AccessLogMiddleware)
 
 # Only add CORS in dev mode (Vite on separate port). In production the frontend
 # is served from the same origin so cross-origin requests don't occur.

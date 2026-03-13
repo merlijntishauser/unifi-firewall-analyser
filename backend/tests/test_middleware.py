@@ -1,14 +1,17 @@
-"""Tests for the application auth middleware."""
+"""Tests for the application middleware (auth + access logging)."""
+
+from __future__ import annotations
 
 from collections.abc import Iterator
 from unittest.mock import patch
 
 import pytest
+from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 from app.config import clear_runtime_credentials, set_runtime_credentials
 from app.main import app
-from app.middleware import COOKIE_NAME, create_session_cookie
+from app.middleware import COOKIE_NAME, _is_enabled, create_session_cookie
 
 
 @pytest.fixture(autouse=True)
@@ -264,3 +267,83 @@ class TestAuthE2EFlow:
             resp = await client.get("/api/auth/status")
             assert resp.status_code == 200
             assert resp.json()["configured"] is True
+
+
+class TestIsEnabled:
+    def test_truthy_values(self) -> None:
+        assert _is_enabled("true") is True
+        assert _is_enabled("1") is True
+        assert _is_enabled("yes") is True
+        assert _is_enabled("on") is True
+
+    def test_falsy_values(self) -> None:
+        assert _is_enabled("false") is False
+        assert _is_enabled(None) is False
+
+
+class TestAccessLogMiddleware:
+    """Tests for AccessLogMiddleware using an isolated test app."""
+
+    @staticmethod
+    def _build_app() -> FastAPI:
+        from app.middleware import AccessLogMiddleware
+
+        test_app = FastAPI()
+
+        @test_app.get("/api/health")
+        async def health() -> dict[str, str]:
+            return {"status": "ok"}
+
+        @test_app.get("/api/zones")
+        async def zones() -> list[str]:
+            return []
+
+        test_app.add_middleware(AccessLogMiddleware)
+        return test_app
+
+    @pytest.mark.anyio
+    async def test_logs_request(self) -> None:
+        test_app = self._build_app()
+        transport = ASGITransport(app=test_app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            with patch("app.middleware.access_log") as mock_log:
+                resp = await ac.get("/api/health")
+
+        assert resp.status_code == 200
+        mock_log.info.assert_called_once()
+        call_kwargs = mock_log.info.call_args
+        assert call_kwargs[0][0] == "request_complete"
+        assert call_kwargs[1]["method"] == "GET"
+        assert call_kwargs[1]["path"] == "/api/health"
+        assert call_kwargs[1]["status"] == 200
+        assert "duration_ms" in call_kwargs[1]
+        assert call_kwargs[1]["client"] == "127.0.0.1"
+
+    @pytest.mark.anyio
+    async def test_suppresses_healthcheck_when_enabled(self) -> None:
+        test_app = self._build_app()
+        transport = ASGITransport(app=test_app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            with (
+                patch("app.middleware._is_enabled", return_value=True),
+                patch("app.middleware.access_log") as mock_log,
+            ):
+                resp = await ac.get("/api/health")
+
+        assert resp.status_code == 200
+        mock_log.info.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_does_not_suppress_non_health_when_enabled(self) -> None:
+        test_app = self._build_app()
+        transport = ASGITransport(app=test_app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            with (
+                patch("app.middleware._is_enabled", return_value=True),
+                patch("app.middleware.access_log") as mock_log,
+            ):
+                resp = await ac.get("/api/zones")
+
+        assert resp.status_code == 200
+        mock_log.info.assert_called_once()
+        assert mock_log.info.call_args[1]["path"] == "/api/zones"
