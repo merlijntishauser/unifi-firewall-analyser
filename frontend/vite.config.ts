@@ -10,6 +10,9 @@ export default defineConfig({
     proxy: {
       "/api": process.env.API_PROXY_TARGET || "http://localhost:8000",
     },
+    warmup: {
+      clientFiles: ["./src/main.tsx", "./src/App.tsx", "./src/components/*.tsx"],
+    },
   },
   test: {
     globals: true,
