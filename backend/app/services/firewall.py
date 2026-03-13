@@ -30,7 +30,7 @@ from app.services.analyzer import analyze_zone_pair as run_analysis
 logger = logging.getLogger(__name__)
 
 
-def _to_topology_config(credentials: UnifiCredentials) -> Config:
+def to_topology_config(credentials: UnifiCredentials) -> Config:
     """Convert our credentials to a unifi-topology Config."""
     return Config(
         url=credentials.url,
@@ -134,7 +134,7 @@ def _policy_to_rule(policy: FirewallPolicy, group_lookup: dict[str, FirewallGrou
 
 def get_zones(credentials: UnifiCredentials) -> list[Zone]:
     """Fetch zones from the UniFi controller."""
-    config = _to_topology_config(credentials)
+    config = to_topology_config(credentials)
     raw_zones = fetch_firewall_zones(config, site=credentials.site)
     zones = normalize_firewall_zones(raw_zones)
     network_lookup = _build_network_lookup(config)
@@ -143,7 +143,7 @@ def get_zones(credentials: UnifiCredentials) -> list[Zone]:
 
 def get_rules(credentials: UnifiCredentials) -> list[Rule]:
     """Fetch firewall rules from the UniFi controller."""
-    config = _to_topology_config(credentials)
+    config = to_topology_config(credentials)
     raw_policies = fetch_firewall_policies(config, site=credentials.site)
     policies = normalize_firewall_policies(raw_policies)
     group_lookup = _build_group_lookup(config)

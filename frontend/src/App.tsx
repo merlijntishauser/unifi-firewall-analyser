@@ -112,6 +112,18 @@ function App() {
       });
   }, [refreshAiConfig, refreshZoneFilter]);
 
+  // Keep selectedPair in sync when zonePairs refreshes (e.g. after toggle/reorder)
+  useEffect(() => {
+    if (selectedPair && zonePairs.length > 0) {
+      const updated = zonePairs.find(
+        (zp) => zp.source_zone_id === selectedPair.source_zone_id && zp.destination_zone_id === selectedPair.destination_zone_id,
+      );
+      if (updated && updated !== selectedPair) {
+        dispatch({ selectedPair: updated });
+      }
+    }
+  }, [zonePairs, selectedPair]);
+
   const handleLogout = useCallback(async () => {
     await api.logout();
     dispatch({ authed: false });

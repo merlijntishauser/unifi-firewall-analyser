@@ -117,6 +117,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 _configure_access_log_filters()
 
+_log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(level=getattr(logging, _log_level, logging.INFO))
+logging.getLogger("app").setLevel(getattr(logging, _log_level, logging.INFO))
+
 app = FastAPI(title="UniFi Firewall Analyser", lifespan=lifespan)
 
 app.add_middleware(
