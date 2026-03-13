@@ -166,6 +166,44 @@ class TestGetFullAiConfig:
         assert result["api_key"] == "sk-env-key"
 
 
+    def test_db_config_with_env_key_fallback(self, db_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """When DB has no key but AI_API_KEY env var is set, has_key should be True."""
+        save_ai_config(db_path, "https://api.openai.com/v1", "", "gpt-4o", "openai")
+        monkeypatch.setenv("AI_API_KEY", "sk-from-env")
+        monkeypatch.delenv("AI_BASE_URL", raising=False)
+        monkeypatch.delenv("AI_MODEL", raising=False)
+
+        result = get_ai_config(db_path)
+        assert result is not None
+        assert result["source"] == "db"
+        assert result["has_key"] is True
+
+
+class TestGetFullAiConfigEnvKeyFallback:
+    def test_db_config_uses_env_key_when_db_key_empty(self, db_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """When DB key is empty but AI_API_KEY env var is set, use the env key."""
+        save_ai_config(db_path, "https://api.openai.com/v1", "", "gpt-4o", "openai")
+        monkeypatch.setenv("AI_API_KEY", "sk-from-env")
+        monkeypatch.delenv("AI_BASE_URL", raising=False)
+        monkeypatch.delenv("AI_MODEL", raising=False)
+
+        result = get_full_ai_config(db_path)
+        assert result is not None
+        assert result["api_key"] == "sk-from-env"
+        assert result["base_url"] == "https://api.openai.com/v1"
+
+    def test_db_key_takes_priority_over_env_key(self, db_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """When both DB and env have keys, DB key wins."""
+        save_ai_config(db_path, "https://api.openai.com/v1", "sk-from-db", "gpt-4o", "openai")
+        monkeypatch.setenv("AI_API_KEY", "sk-from-env")
+        monkeypatch.delenv("AI_BASE_URL", raising=False)
+        monkeypatch.delenv("AI_MODEL", raising=False)
+
+        result = get_full_ai_config(db_path)
+        assert result is not None
+        assert result["api_key"] == "sk-from-db"
+
+
 class TestSaveAiConfig:
     def test_upsert_updates_existing(self, db_path: Path) -> None:
         save_ai_config(db_path, "https://api.openai.com/v1", "sk-old", "gpt-4o", "openai")
@@ -187,7 +225,9 @@ class TestSaveAiConfig:
         assert result["api_key"] == "sk-original"
         assert result["model"] == "gpt-4o-mini"
 
-    def test_empty_key_on_new_config_stores_empty(self, db_path: Path) -> None:
+    def test_empty_key_on_new_config_stores_empty(self, db_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("AI_API_KEY", raising=False)
+        monkeypatch.delenv("AI_API_KEY_FILE", raising=False)
         save_ai_config(db_path, "https://api.openai.com/v1", "", "gpt-4o", "openai")
 
         result = get_full_ai_config(db_path)

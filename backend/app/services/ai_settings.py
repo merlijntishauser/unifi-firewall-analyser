@@ -53,12 +53,14 @@ def get_ai_config(db_path: Path) -> dict[str, object] | None:
         logger.debug("No AI config found in env or db")
         return None
 
-    logger.debug("AI config from db: provider=%s, model=%s", row["provider_type"], row["model"])
+    env_key = _get_env_api_key()
+    has_key = bool(row["api_key"]) or bool(env_key)
+    logger.debug("AI config from db: provider=%s, model=%s, has_key=%s", row["provider_type"], row["model"], has_key)
     return {
         "base_url": row["base_url"],
         "model": row["model"],
         "provider_type": row["provider_type"],
-        "has_key": bool(row["api_key"]),
+        "has_key": has_key,
         "source": "db",
     }
 
@@ -88,10 +90,12 @@ def get_full_ai_config(db_path: Path) -> dict[str, str] | None:
         logger.debug("No full AI config found")
         return None
 
+    # Use env API key as fallback when DB key is empty
+    effective_key = row["api_key"] or api_key
     logger.debug("Full AI config from db: provider=%s, model=%s", row["provider_type"], row["model"])
     return {
         "base_url": row["base_url"],
-        "api_key": row["api_key"],
+        "api_key": effective_key,
         "model": row["model"],
         "provider_type": row["provider_type"],
     }
