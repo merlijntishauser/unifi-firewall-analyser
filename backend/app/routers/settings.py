@@ -8,8 +8,10 @@ from pydantic import BaseModel
 from app.database import DEFAULT_DB_PATH
 from app.services.ai_settings import (
     delete_ai_config,
+    get_ai_analysis_settings,
     get_ai_config,
     get_full_ai_config,
+    save_ai_analysis_settings,
     save_ai_config,
 )
 
@@ -42,6 +44,10 @@ class AiConfigInput(BaseModel):
     api_key: str
     model: str
     provider_type: str
+
+
+class AiAnalysisSettingsInput(BaseModel):
+    site_profile: str
 
 
 @router.get("/ai")
@@ -132,3 +138,20 @@ async def test_connection() -> dict[str, str]:
 @router.get("/ai/presets")
 async def get_presets() -> list[dict[str, object]]:
     return PRESETS
+
+
+@router.get("/ai-analysis")
+async def get_analysis_settings() -> dict[str, str]:
+    settings = get_ai_analysis_settings(DEFAULT_DB_PATH)
+    logger.debug("Get AI analysis settings: %s", settings)
+    return settings
+
+
+@router.put("/ai-analysis")
+async def save_analysis_settings(body: AiAnalysisSettingsInput) -> dict[str, str]:
+    logger.debug("Save AI analysis settings: site_profile=%s", body.site_profile)
+    try:
+        save_ai_analysis_settings(DEFAULT_DB_PATH, body.site_profile)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"status": "ok"}

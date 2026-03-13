@@ -105,3 +105,39 @@ def delete_ai_config(db_path: Path) -> None:
     conn.execute("DELETE FROM ai_config WHERE id = 1")
     conn.commit()
     conn.close()
+
+
+_VALID_SITE_PROFILES = {"homelab", "smb", "enterprise"}
+
+
+def get_ai_analysis_settings(db_path: Path) -> dict[str, str]:
+    """Get AI analysis settings. Returns defaults if no row exists."""
+    conn = get_connection(db_path)
+    conn.row_factory = sqlite3.Row
+    row = conn.execute("SELECT site_profile FROM ai_analysis_settings WHERE id = 1").fetchone()
+    conn.close()
+
+    if row is None:
+        logger.debug("No AI analysis settings found, using defaults")
+        return {"site_profile": "homelab"}
+
+    logger.debug("AI analysis settings: site_profile=%s", row["site_profile"])
+    return {"site_profile": row["site_profile"]}
+
+
+def save_ai_analysis_settings(db_path: Path, site_profile: str) -> None:
+    """Save AI analysis settings (upsert). Validates site_profile."""
+    if site_profile not in _VALID_SITE_PROFILES:
+        msg = f"Invalid site_profile '{site_profile}'. Must be one of: {', '.join(sorted(_VALID_SITE_PROFILES))}"
+        raise ValueError(msg)
+
+    logger.debug("Saving AI analysis settings: site_profile=%s", site_profile)
+    conn = get_connection(db_path)
+    conn.execute(
+        """INSERT INTO ai_analysis_settings (id, site_profile)
+           VALUES (1, ?)
+           ON CONFLICT(id) DO UPDATE SET site_profile = excluded.site_profile""",
+        (site_profile,),
+    )
+    conn.commit()
+    conn.close()

@@ -7,8 +7,10 @@ import pytest
 from app.database import init_db
 from app.services.ai_settings import (
     delete_ai_config,
+    get_ai_analysis_settings,
     get_ai_config,
     get_full_ai_config,
+    save_ai_analysis_settings,
     save_ai_config,
 )
 
@@ -126,3 +128,32 @@ class TestDeleteAiConfig:
 
     def test_delete_when_no_config_does_not_raise(self, db_path: Path) -> None:
         delete_ai_config(db_path)  # Should not raise
+
+
+class TestGetAiAnalysisSettings:
+    def test_returns_default_when_no_row(self, db_path: Path) -> None:
+        result = get_ai_analysis_settings(db_path)
+        assert result == {"site_profile": "homelab"}
+
+    def test_returns_saved_value(self, db_path: Path) -> None:
+        save_ai_analysis_settings(db_path, "enterprise")
+        result = get_ai_analysis_settings(db_path)
+        assert result == {"site_profile": "enterprise"}
+
+
+class TestSaveAiAnalysisSettings:
+    def test_upsert_updates_existing(self, db_path: Path) -> None:
+        save_ai_analysis_settings(db_path, "homelab")
+        save_ai_analysis_settings(db_path, "smb")
+        result = get_ai_analysis_settings(db_path)
+        assert result["site_profile"] == "smb"
+
+    def test_rejects_invalid_profile(self, db_path: Path) -> None:
+        with pytest.raises(ValueError, match="Invalid site_profile"):
+            save_ai_analysis_settings(db_path, "invalid")
+
+    def test_all_valid_profiles(self, db_path: Path) -> None:
+        for profile in ("homelab", "smb", "enterprise"):
+            save_ai_analysis_settings(db_path, profile)
+            result = get_ai_analysis_settings(db_path)
+            assert result["site_profile"] == profile

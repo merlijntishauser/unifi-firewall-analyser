@@ -28,6 +28,11 @@ CREATE TABLE IF NOT EXISTS ai_analysis_cache (
 CREATE TABLE IF NOT EXISTS hidden_zones (
     zone_id TEXT PRIMARY KEY
 );
+
+CREATE TABLE IF NOT EXISTS ai_analysis_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    site_profile TEXT NOT NULL DEFAULT 'homelab'
+);
 """
 
 

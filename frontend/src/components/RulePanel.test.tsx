@@ -1055,7 +1055,7 @@ describe("RulePanel", () => {
         expect(screen.getByRole("button", { name: "Analyzing..." })).toBeDisabled();
       });
 
-      resolveAnalyze({ findings: [] });
+      resolveAnalyze({ status: "ok", findings: [], cached: false, message: null });
 
       await waitFor(() => {
         expect(screen.getByRole("button", { name: "Analyze with AI" })).toBeInTheDocument();
@@ -1064,9 +1064,12 @@ describe("RulePanel", () => {
 
     it("merges AI findings with static findings", async () => {
       mockAnalyzeWithAi.mockResolvedValue({
+        status: "ok",
         findings: [
           { id: "ai1", severity: "medium", title: "AI finding", description: "Found by AI", rule_id: null, source: "ai" as const },
         ],
+        cached: false,
+        message: null,
       });
 
       const pair = makePair([makeRule()], analysisWithFindings);
@@ -1084,9 +1087,12 @@ describe("RulePanel", () => {
 
     it("shows AI badge on AI-sourced findings", async () => {
       mockAnalyzeWithAi.mockResolvedValue({
+        status: "ok",
         findings: [
           { id: "ai1", severity: "low", title: "AI insight", description: "Desc", rule_id: null, source: "ai" as const },
         ],
+        cached: false,
+        message: null,
       });
 
       const pair = makePair([makeRule()], analysisWithFindings);
@@ -1101,7 +1107,25 @@ describe("RulePanel", () => {
       expect(aiBadge.className).toContain("bg-purple-100");
     });
 
-    it("shows error message when AI analysis fails", async () => {
+    it("shows error message when AI returns error status", async () => {
+      mockAnalyzeWithAi.mockResolvedValue({
+        status: "error",
+        findings: [],
+        cached: false,
+        message: "Provider returned HTTP 500",
+      });
+
+      const pair = makePair([makeRule()], analysisWithFindings);
+      renderPanel(pair, "External", "Internal", true);
+
+      fireEvent.click(screen.getByRole("button", { name: "Analyze with AI" }));
+
+      await waitFor(() => {
+        expect(screen.getByText(/Provider returned HTTP 500/)).toBeInTheDocument();
+      });
+    });
+
+    it("shows error message when AI analysis network call fails", async () => {
       mockAnalyzeWithAi.mockRejectedValue(new Error("AI service unavailable"));
 
       const pair = makePair([makeRule()], analysisWithFindings);
@@ -1110,7 +1134,7 @@ describe("RulePanel", () => {
       fireEvent.click(screen.getByRole("button", { name: "Analyze with AI" }));
 
       await waitFor(() => {
-        expect(screen.getByText("AI service unavailable")).toBeInTheDocument();
+        expect(screen.getByText(/AI service unavailable/)).toBeInTheDocument();
       });
     });
 
@@ -1123,7 +1147,65 @@ describe("RulePanel", () => {
       fireEvent.click(screen.getByRole("button", { name: "Analyze with AI" }));
 
       await waitFor(() => {
-        expect(screen.getByText("AI analysis failed")).toBeInTheDocument();
+        expect(screen.getByText(/AI analysis failed/)).toBeInTheDocument();
+      });
+    });
+
+    it("shows no-findings message when AI returns ok with empty findings", async () => {
+      mockAnalyzeWithAi.mockResolvedValue({
+        status: "ok",
+        findings: [],
+        cached: false,
+        message: null,
+      });
+
+      const pair = makePair([makeRule()], analysisWithFindings);
+      renderPanel(pair, "External", "Internal", true);
+
+      fireEvent.click(screen.getByRole("button", { name: "Analyze with AI" }));
+
+      await waitFor(() => {
+        expect(screen.getByText(/no additional findings/)).toBeInTheDocument();
+      });
+    });
+
+    it("shows cached indicator when result is from cache", async () => {
+      mockAnalyzeWithAi.mockResolvedValue({
+        status: "ok",
+        findings: [
+          { id: "ai1", severity: "low", title: "Cached finding", description: "Desc", rule_id: null, source: "ai" as const },
+        ],
+        cached: true,
+        message: null,
+      });
+
+      const pair = makePair([makeRule()], analysisWithFindings);
+      renderPanel(pair, "External", "Internal", true);
+
+      fireEvent.click(screen.getByRole("button", { name: "Analyze with AI" }));
+
+      await waitFor(() => {
+        expect(screen.getByText("AI findings from cache")).toBeInTheDocument();
+      });
+    });
+
+    it("shows confidence badge on enriched findings", async () => {
+      mockAnalyzeWithAi.mockResolvedValue({
+        status: "ok",
+        findings: [
+          { id: "ai1", severity: "high", title: "Risk", description: "Desc", rule_id: null, source: "ai" as const, confidence: "high" },
+        ],
+        cached: false,
+        message: null,
+      });
+
+      const pair = makePair([makeRule()], analysisWithFindings);
+      renderPanel(pair, "External", "Internal", true);
+
+      fireEvent.click(screen.getByRole("button", { name: "Analyze with AI" }));
+
+      await waitFor(() => {
+        expect(screen.getByText("high", { selector: ".bg-gray-100, [class*=noc-raised]" })).toBeInTheDocument();
       });
     });
   });
@@ -1348,7 +1430,7 @@ describe("RulePanel", () => {
   });
 
   describe("finding rationale", () => {
-    it("shows 'Why?' button when finding has rationale", () => {
+    it("shows 'Details' button when finding has rationale", () => {
       const analysis = {
         score: 85,
         grade: "B",
@@ -1363,10 +1445,10 @@ describe("RulePanel", () => {
         }],
       };
       renderPanel(makePair([], analysis));
-      expect(screen.getByText("Why?")).toBeInTheDocument();
+      expect(screen.getByText("Details")).toBeInTheDocument();
     });
 
-    it("does not show 'Why?' button when finding has no rationale", () => {
+    it("does not show 'Details' button when finding has no rationale", () => {
       const analysis = {
         score: 85,
         grade: "B",
@@ -1380,10 +1462,10 @@ describe("RulePanel", () => {
         }],
       };
       renderPanel(makePair([], analysis));
-      expect(screen.queryByText("Why?")).not.toBeInTheDocument();
+      expect(screen.queryByText("Details")).not.toBeInTheDocument();
     });
 
-    it("shows rationale when 'Why?' is clicked", () => {
+    it("shows rationale when 'Details' is clicked", () => {
       const analysis = {
         score: 85,
         grade: "B",
@@ -1398,7 +1480,7 @@ describe("RulePanel", () => {
         }],
       };
       renderPanel(makePair([], analysis));
-      fireEvent.click(screen.getByText("Why?"));
+      fireEvent.click(screen.getByText("Details"));
       expect(screen.getByText("This is the rationale")).toBeInTheDocument();
     });
   });

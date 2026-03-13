@@ -7,7 +7,9 @@ vi.mock("../api/client", () => ({
   api: {
     getAiPresets: vi.fn(),
     getAiConfig: vi.fn(),
+    getAiAnalysisSettings: vi.fn(),
     saveAiConfig: vi.fn(),
+    saveAiAnalysisSettings: vi.fn(),
     testAiConnection: vi.fn(),
     deleteAiConfig: vi.fn(),
   },
@@ -17,7 +19,9 @@ import { api } from "../api/client";
 
 const mockGetAiPresets = vi.mocked(api.getAiPresets);
 const mockGetAiConfig = vi.mocked(api.getAiConfig);
+const mockGetAiAnalysisSettings = vi.mocked(api.getAiAnalysisSettings);
 const mockSaveAiConfig = vi.mocked(api.saveAiConfig);
+const mockSaveAiAnalysisSettings = vi.mocked(api.saveAiAnalysisSettings);
 const mockTestAiConnection = vi.mocked(api.testAiConnection);
 const mockDeleteAiConfig = vi.mocked(api.deleteAiConfig);
 
@@ -59,11 +63,14 @@ const existingConfig: AiConfig = {
 describe("SettingsModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetAiAnalysisSettings.mockResolvedValue({ site_profile: "homelab" });
+    mockSaveAiAnalysisSettings.mockResolvedValue({});
   });
 
   it("renders modal with title", () => {
     mockGetAiPresets.mockReturnValue(new Promise(() => {}));
     mockGetAiConfig.mockReturnValue(new Promise(() => {}));
+    mockGetAiAnalysisSettings.mockReturnValue(new Promise(() => {}));
 
     render(<SettingsModal onClose={vi.fn()} />);
 
@@ -73,6 +80,7 @@ describe("SettingsModal", () => {
   it("shows loading state initially", () => {
     mockGetAiPresets.mockReturnValue(new Promise(() => {}));
     mockGetAiConfig.mockReturnValue(new Promise(() => {}));
+    mockGetAiAnalysisSettings.mockReturnValue(new Promise(() => {}));
 
     render(<SettingsModal onClose={vi.fn()} />);
 
@@ -147,6 +155,7 @@ describe("SettingsModal", () => {
       model: "gpt-4o",
       provider_type: "openai",
     });
+    expect(mockSaveAiAnalysisSettings).toHaveBeenCalledWith({ site_profile: "homelab" });
     expect(onClose).toHaveBeenCalled();
   });
 
@@ -530,6 +539,54 @@ describe("SettingsModal", () => {
     // Fields should remain unchanged since the preset was not found
     const modelAfter = screen.getByLabelText("Model") as HTMLSelectElement;
     expect(modelAfter.value).toBe("gpt-4o");
+  });
+
+  it("renders site profile dropdown with loaded value", async () => {
+    mockGetAiPresets.mockResolvedValue(testPresets);
+    mockGetAiConfig.mockResolvedValue(noConfig);
+    mockGetAiAnalysisSettings.mockResolvedValue({ site_profile: "smb" });
+
+    render(<SettingsModal onClose={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Site Profile")).toBeInTheDocument();
+    });
+
+    const select = screen.getByLabelText("Site Profile") as HTMLSelectElement;
+    expect(select.value).toBe("smb");
+  });
+
+  it("saves site profile when changed", async () => {
+    mockGetAiPresets.mockResolvedValue(testPresets);
+    mockGetAiConfig.mockResolvedValue(noConfig);
+    mockSaveAiConfig.mockResolvedValue({ status: "ok" });
+    const onClose = vi.fn();
+
+    render(<SettingsModal onClose={onClose} />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Provider")).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Provider"), {
+        target: { value: "openai" },
+      });
+    });
+
+    fireEvent.change(screen.getByLabelText("Site Profile"), {
+      target: { value: "enterprise" },
+    });
+
+    fireEvent.change(screen.getByLabelText("API Key"), {
+      target: { value: "sk-key" },
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    });
+
+    expect(mockSaveAiAnalysisSettings).toHaveBeenCalledWith({ site_profile: "enterprise" });
   });
 
   it("shows fallback message when test fails with non-Error value", async () => {

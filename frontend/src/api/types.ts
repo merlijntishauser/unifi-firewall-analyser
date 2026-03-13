@@ -55,6 +55,9 @@ export interface Finding {
   description: string;
   rationale?: string;
   rule_id: string | null;
+  rule_ids?: string[];
+  confidence?: "low" | "medium" | "high" | "";
+  recommended_action?: string;
   source: "static" | "ai";
 }
 
@@ -104,7 +107,14 @@ export interface AiAnalyzeRequest {
 }
 
 export interface AiAnalyzeResponse {
+  status: "ok" | "error";
   findings: Finding[];
+  cached: boolean;
+  message: string | null;
+}
+
+export interface AiAnalysisSettings {
+  site_profile: "homelab" | "smb" | "enterprise";
 }
 
 export interface SimulateRequest {

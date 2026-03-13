@@ -58,7 +58,17 @@ class FindingModel(BaseModel):
     description: str
     rationale: str = ""
     rule_id: str | None = None
+    rule_ids: list[str] = []
+    confidence: str = ""
+    recommended_action: str = ""
     source: str = "static"
+
+
+class AiAnalysisResult(BaseModel):
+    status: str  # "ok" or "error"
+    findings: list[FindingModel] = []
+    cached: bool = False
+    message: str | None = None
 
 
 class ZonePairAnalysis(BaseModel):

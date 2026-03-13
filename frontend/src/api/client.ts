@@ -1,4 +1,5 @@
 import type {
+  AiAnalysisSettings,
   AiAnalyzeRequest,
   AiAnalyzeResponse,
   AiConfig,
@@ -65,6 +66,13 @@ export const api = {
   testAiConnection: () =>
     fetchJson<{ status: string }>("/settings/ai/test", { method: "POST" }),
   getAiPresets: () => fetchJson<AiPreset[]>("/settings/ai/presets"),
+  getAiAnalysisSettings: () =>
+    fetchJson<AiAnalysisSettings>("/settings/ai-analysis"),
+  saveAiAnalysisSettings: (settings: AiAnalysisSettings) =>
+    fetchJson("/settings/ai-analysis", {
+      method: "PUT",
+      body: JSON.stringify(settings),
+    }),
   analyzeWithAi: (req: AiAnalyzeRequest) =>
     fetchJson<AiAnalyzeResponse>("/analyze", {
       method: "POST",

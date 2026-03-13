@@ -211,3 +211,32 @@ async def test_test_connection_http_error(client: AsyncClient) -> None:
         resp = await client.post("/api/settings/ai/test")
     assert resp.status_code == 502
     assert "401" in resp.json()["detail"]
+
+
+@pytest.mark.anyio
+async def test_get_ai_analysis_settings_default(client: AsyncClient) -> None:
+    resp = await client.get("/api/settings/ai-analysis")
+    assert resp.status_code == 200
+    assert resp.json() == {"site_profile": "homelab"}
+
+
+@pytest.mark.anyio
+async def test_put_ai_analysis_settings(client: AsyncClient) -> None:
+    resp = await client.put(
+        "/api/settings/ai-analysis",
+        json={"site_profile": "enterprise"},
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok"}
+
+    get_resp = await client.get("/api/settings/ai-analysis")
+    assert get_resp.json() == {"site_profile": "enterprise"}
+
+
+@pytest.mark.anyio
+async def test_put_ai_analysis_settings_invalid(client: AsyncClient) -> None:
+    resp = await client.put(
+        "/api/settings/ai-analysis",
+        json={"site_profile": "invalid_profile"},
+    )
+    assert resp.status_code == 422

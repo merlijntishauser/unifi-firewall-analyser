@@ -25,6 +25,8 @@ interface RulePanelState {
   aiLoading: boolean;
   aiError: string | null;
   aiFindings: Finding[];
+  aiCached: boolean;
+  aiCompleted: boolean;
   writeLoading: string | null;
   writeError: string | null;
 }
@@ -41,6 +43,8 @@ const initialState: RulePanelState = {
   aiLoading: false,
   aiError: null,
   aiFindings: [],
+  aiCached: false,
+  aiCompleted: false,
   writeLoading: null,
   writeError: null,
 };
@@ -71,7 +75,8 @@ function severityBadge(severity: string): string {
 const SEVERITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
 
 function FindingCard({ finding }: { finding: Finding }) {
-  const [showRationale, setShowRationale] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
+  const hasDetails = !!(finding.rationale || finding.recommended_action);
   return (
     <div className="rounded-lg border border-gray-200 dark:border-noc-border p-2.5 text-xs bg-gray-50 dark:bg-noc-raised/50">
       <div className="flex items-center gap-1.5">
@@ -83,21 +88,33 @@ function FindingCard({ finding }: { finding: Finding }) {
             AI
           </span>
         )}
+        {finding.confidence && (
+          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 dark:bg-noc-raised text-gray-500 dark:text-noc-text-dim">
+            {finding.confidence}
+          </span>
+        )}
         <span className="font-medium text-gray-900 dark:text-noc-text">{finding.title}</span>
       </div>
       <p className="mt-1 text-gray-500 dark:text-noc-text-secondary">{finding.description}</p>
-      {finding.rationale && (
+      {hasDetails && (
         <>
           <button
-            onClick={() => setShowRationale(!showRationale)}
+            onClick={() => setShowDetails(!showDetails)}
             className="mt-1 text-[10px] font-medium text-ub-blue hover:text-ub-blue-light cursor-pointer transition-colors"
           >
-            {showRationale ? "Hide" : "Why?"}
+            {showDetails ? "Hide details" : "Details"}
           </button>
-          {showRationale && (
-            <p className="mt-1 pl-2 border-l-2 border-ub-blue/30 text-gray-500 dark:text-noc-text-secondary text-[11px] animate-fade-in">
-              {finding.rationale}
-            </p>
+          {showDetails && (
+            <div className="mt-1 pl-2 border-l-2 border-ub-blue/30 text-[11px] animate-fade-in space-y-1">
+              {finding.rationale && (
+                <p className="text-gray-500 dark:text-noc-text-secondary">{finding.rationale}</p>
+              )}
+              {finding.recommended_action && (
+                <p className="text-gray-600 dark:text-noc-text-secondary">
+                  <span className="font-medium">Action:</span> {finding.recommended_action}
+                </p>
+              )}
+            </div>
           )}
         </>
       )}
@@ -453,6 +470,54 @@ function RuleCard({
   );
 }
 
+function AiAnalysisStatus({
+  aiError,
+  aiCompleted,
+  aiCached,
+  aiFindings,
+  aiLoading,
+  aiConfigured,
+  onAnalyze,
+}: {
+  aiError: string | null;
+  aiCompleted: boolean;
+  aiCached: boolean;
+  aiFindings: Finding[];
+  aiLoading: boolean;
+  aiConfigured: boolean;
+  onAnalyze: () => void;
+}) {
+  return (
+    <>
+      {aiError && (
+        <div className="rounded-lg bg-red-50 dark:bg-status-danger-dim border border-red-200 dark:border-status-danger/20 p-2.5 text-xs text-red-700 dark:text-status-danger">
+          AI analysis failed: {aiError}
+        </div>
+      )}
+      {aiCompleted && aiFindings.length === 0 && (
+        <div className="rounded-lg bg-green-50 dark:bg-status-success/10 border border-green-200 dark:border-status-success/20 p-2.5 text-xs text-green-700 dark:text-status-success">
+          AI analysis completed -- no additional findings.
+          {aiCached && <span className="ml-1 opacity-70">(cached)</span>}
+        </div>
+      )}
+      {aiCached && aiFindings.length > 0 && (
+        <div className="text-[10px] text-gray-400 dark:text-noc-text-dim">
+          AI findings from cache
+        </div>
+      )}
+      {aiConfigured && (
+        <button
+          onClick={onAnalyze}
+          disabled={aiLoading}
+          className="w-full rounded-lg bg-ub-purple px-3 py-1.5 text-xs font-semibold text-white hover:bg-ub-purple-light focus:outline-none focus:ring-2 focus:ring-ub-purple/40 focus:ring-offset-1 dark:focus:ring-offset-noc-surface disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-all"
+        >
+          {aiLoading ? "Analyzing..." : "Analyze with AI"}
+        </button>
+      )}
+    </>
+  );
+}
+
 function SimulationForm({
   state,
   dispatch,
@@ -658,18 +723,20 @@ export default function RulePanel({
   ], [pair.analysis?.findings, state.aiFindings]);
 
   async function handleAiAnalyze() {
-    dispatch({ aiLoading: true, aiError: null });
+    dispatch({ aiLoading: true, aiError: null, aiCompleted: false });
     try {
       const result = await api.analyzeWithAi({
         source_zone_name: sourceZoneName,
         destination_zone_name: destZoneName,
         rules: pair.rules,
       });
-      dispatch({ aiFindings: result.findings });
+      if (result.status === "error") {
+        dispatch({ aiError: result.message ?? "AI analysis failed", aiLoading: false });
+      } else {
+        dispatch({ aiFindings: result.findings, aiCached: result.cached, aiCompleted: true, aiLoading: false });
+      }
     } catch (err) {
-      dispatch({ aiError: err instanceof Error ? err.message : "AI analysis failed" });
-    } finally {
-      dispatch({ aiLoading: false });
+      dispatch({ aiError: err instanceof Error ? err.message : "AI analysis failed", aiLoading: false });
     }
   }
 
@@ -749,20 +816,15 @@ export default function RulePanel({
             )}
           </div>
         )}
-        {state.aiError && (
-          <div className="rounded-lg bg-red-50 dark:bg-status-danger-dim border border-red-200 dark:border-status-danger/20 p-2.5 text-xs text-red-700 dark:text-status-danger">
-            {state.aiError}
-          </div>
-        )}
-        {aiConfigured && (
-          <button
-            onClick={handleAiAnalyze}
-            disabled={state.aiLoading}
-            className="w-full rounded-lg bg-ub-purple px-3 py-1.5 text-xs font-semibold text-white hover:bg-ub-purple-light focus:outline-none focus:ring-2 focus:ring-ub-purple/40 focus:ring-offset-1 dark:focus:ring-offset-noc-surface disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-all"
-          >
-            {state.aiLoading ? "Analyzing..." : "Analyze with AI"}
-          </button>
-        )}
+        <AiAnalysisStatus
+          aiError={state.aiError}
+          aiCompleted={state.aiCompleted}
+          aiCached={state.aiCached}
+          aiFindings={state.aiFindings}
+          aiLoading={state.aiLoading}
+          aiConfigured={aiConfigured}
+          onAnalyze={handleAiAnalyze}
+        />
 
         {/* Rule list */}
         <div className="space-y-2">

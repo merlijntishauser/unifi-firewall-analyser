@@ -6,6 +6,8 @@ interface SettingsModalProps {
   onClose: () => void;
 }
 
+type SiteProfile = "homelab" | "smb" | "enterprise";
+
 interface SettingsState {
   presets: AiPreset[];
   selectedPresetId: string | null;
@@ -14,6 +16,7 @@ interface SettingsState {
   model: string;
   providerType: string;
   models: string[];
+  siteProfile: SiteProfile;
   saving: boolean;
   testing: boolean;
   testResult: { ok: boolean; message: string } | null;
@@ -29,6 +32,7 @@ const initialSettingsState: SettingsState = {
   model: "",
   providerType: "openai",
   models: [],
+  siteProfile: "homelab",
   saving: false,
   testing: false,
   testResult: null,
@@ -42,15 +46,16 @@ function settingsReducer(state: SettingsState, update: Partial<SettingsState>): 
 
 export default function SettingsModal({ onClose }: SettingsModalProps) {
   const [state, dispatch] = useReducer(settingsReducer, initialSettingsState);
-  const { presets, selectedPresetId, baseUrl, apiKey, model, providerType, models, saving, testing, testResult, error, loading } = state;
+  const { presets, selectedPresetId, baseUrl, apiKey, model, providerType, models, siteProfile, saving, testing, testResult, error, loading } = state;
 
-  // Load presets and current config on mount
+  // Load presets, current config, and analysis settings on mount
   useEffect(() => {
     async function load() {
       try {
-        const [presetsData, config] = await Promise.all([
+        const [presetsData, config, analysisSettings] = await Promise.all([
           api.getAiPresets(),
           api.getAiConfig(),
+          api.getAiAnalysisSettings(),
         ]);
         if (config.source !== "none") {
           const matchedPreset = presetsData.find(p => p.base_url === config.base_url);
@@ -61,10 +66,11 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
             providerType: config.provider_type,
             selectedPresetId: matchedPreset ? matchedPreset.id : null,
             models: matchedPreset ? matchedPreset.models : [],
+            siteProfile: analysisSettings.site_profile,
             loading: false,
           });
         } else {
-          dispatch({ presets: presetsData, loading: false });
+          dispatch({ presets: presetsData, siteProfile: analysisSettings.site_profile, loading: false });
         }
       } catch {
         dispatch({ error: "Failed to load settings", loading: false });
@@ -87,12 +93,15 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   const handleSave = useCallback(async () => {
     dispatch({ saving: true, error: null });
     try {
-      await api.saveAiConfig({ base_url: baseUrl, api_key: apiKey, model, provider_type: providerType });
+      await Promise.all([
+        api.saveAiConfig({ base_url: baseUrl, api_key: apiKey, model, provider_type: providerType }),
+        api.saveAiAnalysisSettings({ site_profile: siteProfile }),
+      ]);
       onClose();
     } catch {
       dispatch({ error: "Failed to save settings", saving: false });
     }
-  }, [baseUrl, apiKey, model, providerType, onClose]);
+  }, [baseUrl, apiKey, model, providerType, siteProfile, onClose]);
 
   const handleTest = useCallback(async () => {
     dispatch({ testing: true, testResult: null });
@@ -234,6 +243,24 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                 )}
               </>
             )}
+
+            {/* Site profile */}
+            <div>
+              <label htmlFor="settings-site-profile" className="block text-sm font-medium text-gray-700 dark:text-noc-text-secondary mb-1">Site Profile</label>
+              <select
+                id="settings-site-profile"
+                value={siteProfile}
+                onChange={e => dispatch({ siteProfile: e.target.value as SiteProfile })}
+                className={inputClass}
+              >
+                <option value="homelab">Homelab</option>
+                <option value="smb">Small / Medium Business</option>
+                <option value="enterprise">Enterprise</option>
+              </select>
+              <p className="mt-1 text-xs text-gray-500 dark:text-noc-text-dim">
+                Tunes AI analysis prioritization and remediation for your environment.
+              </p>
+            </div>
 
             {/* Error/test messages */}
             {error && <div className="text-sm text-red-600 dark:text-status-danger">{error}</div>}

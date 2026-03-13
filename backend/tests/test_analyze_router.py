@@ -4,8 +4,7 @@ import pytest
 from httpx import AsyncClient
 
 from app.database import init_db
-from app.models import FindingModel
-from app.services.ai_settings import save_ai_config
+from app.models import AiAnalysisResult, FindingModel
 
 
 @pytest.fixture(autouse=True)
@@ -17,7 +16,8 @@ def _use_test_db(tmp_path, monkeypatch):
 
 
 @pytest.mark.anyio
-async def test_analyze_requires_ai_config(client: AsyncClient) -> None:
+async def test_analyze_no_config_returns_error_status(client: AsyncClient) -> None:
+    """When no AI config exists, the service returns status=error (not HTTP 400)."""
     resp = await client.post(
         "/api/analyze",
         json={
@@ -26,19 +26,23 @@ async def test_analyze_requires_ai_config(client: AsyncClient) -> None:
             "rules": [],
         },
     )
-    assert resp.status_code == 400
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "error"
+    assert data["message"] is not None
 
 
 @pytest.mark.anyio
-async def test_analyze_returns_findings(client: AsyncClient, _use_test_db) -> None:
-    db_path = _use_test_db
-    save_ai_config(db_path, "http://test.com/v1", "key", "model", "openai")
+async def test_analyze_returns_findings(client: AsyncClient) -> None:
+    mock_result = AiAnalysisResult(
+        status="ok",
+        findings=[
+            FindingModel(id="ai-0", severity="high", title="Test", description="Test finding", source="ai"),
+        ],
+        cached=False,
+    )
 
-    mock_findings = [
-        FindingModel(id="ai-0", severity="high", title="Test", description="Test finding", source="ai"),
-    ]
-
-    with patch("app.routers.analyze.analyze_with_ai", new_callable=AsyncMock, return_value=mock_findings):
+    with patch("app.routers.analyze.analyze_with_ai", new_callable=AsyncMock, return_value=mock_result):
         resp = await client.post(
             "/api/analyze",
             json={
@@ -59,17 +63,17 @@ async def test_analyze_returns_findings(client: AsyncClient, _use_test_db) -> No
 
     assert resp.status_code == 200
     data = resp.json()
-    assert "findings" in data
+    assert data["status"] == "ok"
+    assert data["cached"] is False
     assert len(data["findings"]) == 1
     assert data["findings"][0]["source"] == "ai"
 
 
 @pytest.mark.anyio
-async def test_analyze_returns_empty_on_no_findings(client: AsyncClient, _use_test_db) -> None:
-    db_path = _use_test_db
-    save_ai_config(db_path, "http://test.com/v1", "key", "model", "openai")
+async def test_analyze_returns_ok_with_no_findings(client: AsyncClient) -> None:
+    mock_result = AiAnalysisResult(status="ok", findings=[], cached=False)
 
-    with patch("app.routers.analyze.analyze_with_ai", new_callable=AsyncMock, return_value=[]):
+    with patch("app.routers.analyze.analyze_with_ai", new_callable=AsyncMock, return_value=mock_result):
         resp = await client.post(
             "/api/analyze",
             json={
@@ -80,4 +84,62 @@ async def test_analyze_returns_empty_on_no_findings(client: AsyncClient, _use_te
         )
 
     assert resp.status_code == 200
-    assert resp.json()["findings"] == []
+    data = resp.json()
+    assert data["status"] == "ok"
+    assert data["findings"] == []
+    assert data["cached"] is False
+
+
+@pytest.mark.anyio
+async def test_analyze_cached_result(client: AsyncClient) -> None:
+    mock_result = AiAnalysisResult(
+        status="ok",
+        findings=[FindingModel(id="ai-0", severity="low", title="Cached", description="From cache", source="ai")],
+        cached=True,
+    )
+
+    with patch("app.routers.analyze.analyze_with_ai", new_callable=AsyncMock, return_value=mock_result):
+        resp = await client.post(
+            "/api/analyze",
+            json={
+                "source_zone_name": "LAN",
+                "destination_zone_name": "WAN",
+                "rules": [],
+            },
+        )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "ok"
+    assert data["cached"] is True
+
+
+@pytest.mark.anyio
+async def test_analyze_passes_static_findings(client: AsyncClient) -> None:
+    """Verify that the router runs static analysis and passes findings to the AI analyzer."""
+    mock_result = AiAnalysisResult(status="ok", findings=[], cached=False)
+
+    with patch("app.routers.analyze.analyze_with_ai", new_callable=AsyncMock, return_value=mock_result) as mock_ai:
+        await client.post(
+            "/api/analyze",
+            json={
+                "source_zone_name": "LAN",
+                "destination_zone_name": "WAN",
+                "rules": [
+                    {
+                        "id": "r1",
+                        "name": "Allow All",
+                        "enabled": True,
+                        "action": "ALLOW",
+                        "source_zone_id": "z1",
+                        "destination_zone_id": "z2",
+                        "protocol": "all",
+                    }
+                ],
+            },
+        )
+
+    # Verify static_findings kwarg was passed
+    call_kwargs = mock_ai.call_args
+    assert "static_findings" in call_kwargs.kwargs
+    assert isinstance(call_kwargs.kwargs["static_findings"], list)

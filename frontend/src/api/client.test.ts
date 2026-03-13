@@ -196,6 +196,27 @@ describe("api client", () => {
     });
   });
 
+  describe("getAiAnalysisSettings", () => {
+    it("fetches analysis settings from correct endpoint", async () => {
+      const data = { site_profile: "homelab" };
+      mockFetch.mockResolvedValue(mockOkResponse(data));
+      const result = await api.getAiAnalysisSettings();
+      expect(result).toEqual(data);
+      expect(mockFetch).toHaveBeenCalledWith("/api/settings/ai-analysis", expect.objectContaining({}));
+    });
+  });
+
+  describe("saveAiAnalysisSettings", () => {
+    it("sends PUT with analysis settings body", async () => {
+      mockFetch.mockResolvedValue(mockOkResponse({ site_profile: "enterprise" }));
+      await api.saveAiAnalysisSettings({ site_profile: "enterprise" });
+      const [url, init] = mockFetch.mock.calls[0];
+      expect(url).toBe("/api/settings/ai-analysis");
+      expect(init.method).toBe("PUT");
+      expect(JSON.parse(init.body)).toEqual({ site_profile: "enterprise" });
+    });
+  });
+
   describe("analyzeWithAi", () => {
     it("sends POST with analysis request", async () => {
       const req = { source_zone_name: "LAN", destination_zone_name: "WAN", rules: [] };
