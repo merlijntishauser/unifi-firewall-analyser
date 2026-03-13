@@ -66,3 +66,4 @@ def configure_logging() -> None:
     # Suppress noisy libraries
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("alembic").setLevel(logging.WARNING)
