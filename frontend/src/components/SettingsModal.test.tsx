@@ -171,7 +171,7 @@ describe("SettingsModal", () => {
     });
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Test" }));
+      fireEvent.click(screen.getByRole("button", { name: "Test Connection" }));
     });
 
     expect(mockTestAiConnection).toHaveBeenCalled();
@@ -280,7 +280,7 @@ describe("SettingsModal", () => {
     });
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Test" }));
+      fireEvent.click(screen.getByRole("button", { name: "Test Connection" }));
     });
 
     const failMsg = screen.getByText(/Connection error/);
@@ -290,7 +290,7 @@ describe("SettingsModal", () => {
 
   it("shows error when delete fails", async () => {
     mockGetAiPresets.mockResolvedValue(testPresets);
-    mockGetAiConfig.mockResolvedValue(noConfig);
+    mockGetAiConfig.mockResolvedValue(existingConfig);
     mockDeleteAiConfig.mockRejectedValue(new Error("Delete failed"));
     const onClose = vi.fn();
 
@@ -418,6 +418,19 @@ describe("SettingsModal", () => {
       model: "gpt-4o-mini",
       provider_type: "openai",
     });
+  });
+
+  it("hides Delete button when source is none", async () => {
+    mockGetAiPresets.mockResolvedValue(testPresets);
+    mockGetAiConfig.mockResolvedValue(noConfig);
+
+    render(<SettingsModal onClose={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Provider")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
   });
 
   it("calls onClose when Escape is pressed on backdrop", async () => {
@@ -589,6 +602,20 @@ describe("SettingsModal", () => {
     expect(mockSaveAiAnalysisSettings).toHaveBeenCalledWith({ site_profile: "enterprise" });
   });
 
+  it("shows api key placeholder with existing key", async () => {
+    mockGetAiPresets.mockResolvedValue(testPresets);
+    mockGetAiConfig.mockResolvedValue(existingConfig);
+
+    render(<SettingsModal onClose={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Provider")).toBeInTheDocument();
+    });
+
+    const keyInput = screen.getByLabelText("API Key") as HTMLInputElement;
+    expect(keyInput.placeholder).toBe("Key configured — leave blank to keep");
+  });
+
   it("shows fallback message when test fails with non-Error value", async () => {
     mockGetAiPresets.mockResolvedValue(testPresets);
     mockGetAiConfig.mockResolvedValue(noConfig);
@@ -601,11 +628,130 @@ describe("SettingsModal", () => {
     });
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Test" }));
+      fireEvent.click(screen.getByRole("button", { name: "Test Connection" }));
     });
 
     const failMsg = screen.getByText("Connection failed");
     expect(failMsg).toBeInTheDocument();
     expect(failMsg.className).toContain("text-red-600");
+  });
+
+  describe("env-sourced config", () => {
+    const envConfig: AiConfig = {
+      base_url: "https://api.openai.com/v1",
+      model: "gpt-4o",
+      provider_type: "openai",
+      has_key: true,
+      source: "env",
+    };
+
+    it("shows env banner when config is from environment", async () => {
+      mockGetAiPresets.mockResolvedValue(testPresets);
+      mockGetAiConfig.mockResolvedValue(envConfig);
+
+      render(<SettingsModal onClose={vi.fn()} />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Configured via environment variables/)).toBeInTheDocument();
+      });
+    });
+
+    it("disables provider dropdown when env-sourced", async () => {
+      mockGetAiPresets.mockResolvedValue(testPresets);
+      mockGetAiConfig.mockResolvedValue(envConfig);
+
+      render(<SettingsModal onClose={vi.fn()} />);
+
+      await waitFor(() => {
+        expect(screen.getByLabelText("Provider")).toBeInTheDocument();
+      });
+
+      expect(screen.getByLabelText("Provider")).toBeDisabled();
+    });
+
+    it("shows provider-specific key indicator when env-sourced", async () => {
+      mockGetAiPresets.mockResolvedValue(testPresets);
+      mockGetAiConfig.mockResolvedValue(envConfig);
+
+      render(<SettingsModal onClose={vi.fn()} />);
+
+      await waitFor(() => {
+        expect(screen.getByText("OpenAI key configured via environment")).toBeInTheDocument();
+      });
+
+      // API Key input should not exist
+      expect(screen.queryByLabelText("API Key")).not.toBeInTheDocument();
+    });
+
+    it("disables model dropdown when env-sourced", async () => {
+      mockGetAiPresets.mockResolvedValue(testPresets);
+      mockGetAiConfig.mockResolvedValue(envConfig);
+
+      render(<SettingsModal onClose={vi.fn()} />);
+
+      await waitFor(() => {
+        expect(screen.getByLabelText("Model")).toBeInTheDocument();
+      });
+
+      expect(screen.getByLabelText("Model")).toBeDisabled();
+    });
+
+    it("hides Delete button when env-sourced", async () => {
+      mockGetAiPresets.mockResolvedValue(testPresets);
+      mockGetAiConfig.mockResolvedValue(envConfig);
+
+      render(<SettingsModal onClose={vi.fn()} />);
+
+      await waitFor(() => {
+        expect(screen.getByLabelText("Provider")).toBeInTheDocument();
+      });
+
+      expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+    });
+
+    it("Save only saves site profile when env-sourced", async () => {
+      mockGetAiPresets.mockResolvedValue(testPresets);
+      mockGetAiConfig.mockResolvedValue(envConfig);
+      mockSaveAiAnalysisSettings.mockResolvedValue({});
+      const onClose = vi.fn();
+
+      render(<SettingsModal onClose={onClose} />);
+
+      await waitFor(() => {
+        expect(screen.getByLabelText("Provider")).toBeInTheDocument();
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      });
+
+      expect(mockSaveAiAnalysisSettings).toHaveBeenCalledWith({ site_profile: "homelab" });
+      expect(mockSaveAiConfig).not.toHaveBeenCalled();
+      expect(onClose).toHaveBeenCalled();
+    });
+
+    it("still shows Test Connection button when env-sourced", async () => {
+      mockGetAiPresets.mockResolvedValue(testPresets);
+      mockGetAiConfig.mockResolvedValue(envConfig);
+
+      render(<SettingsModal onClose={vi.fn()} />);
+
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "Test Connection" })).toBeInTheDocument();
+      });
+    });
+
+    it("allows site profile editing when env-sourced", async () => {
+      mockGetAiPresets.mockResolvedValue(testPresets);
+      mockGetAiConfig.mockResolvedValue(envConfig);
+
+      render(<SettingsModal onClose={vi.fn()} />);
+
+      await waitFor(() => {
+        expect(screen.getByLabelText("Site Profile")).toBeInTheDocument();
+      });
+
+      expect(screen.getByLabelText("Site Profile")).not.toBeDisabled();
+    });
   });
 });

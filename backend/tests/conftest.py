@@ -185,6 +185,7 @@ def _clean_credentials() -> Iterator[None]:
         patch("app.config.settings.unifi_url", ""),
         patch("app.config.settings.unifi_user", ""),
         patch("app.config.settings.unifi_pass", ""),
+        patch("app.config.settings.app_password", ""),
     ):
         yield
     clear_runtime_credentials()
