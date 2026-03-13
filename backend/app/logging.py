@@ -63,6 +63,12 @@ def configure_logging() -> None:
 
     logging.getLogger("app").setLevel(log_level)
 
+    # Route uvicorn logs through structlog by removing uvicorn's own handlers
+    for name in ("uvicorn", "uvicorn.access", "uvicorn.error"):
+        uv_logger = logging.getLogger(name)
+        uv_logger.handlers.clear()
+        uv_logger.propagate = True
+
     # Suppress noisy libraries
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
