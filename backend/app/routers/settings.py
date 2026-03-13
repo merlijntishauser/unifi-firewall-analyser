@@ -5,7 +5,6 @@ import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from app.database import DEFAULT_DB_PATH
 from app.services.ai_settings import (
     delete_ai_config,
     get_ai_analysis_settings,
@@ -52,7 +51,7 @@ class AiAnalysisSettingsInput(BaseModel):
 
 @router.get("/ai")
 async def get_config() -> dict[str, object]:
-    config = get_ai_config(DEFAULT_DB_PATH)
+    config = get_ai_config()
     logger.debug("Get AI config: source=%s", config.get("source"))
     return config
 
@@ -60,14 +59,14 @@ async def get_config() -> dict[str, object]:
 @router.put("/ai")
 async def save_config(body: AiConfigInput) -> dict[str, str]:
     logger.debug("Save AI config: provider=%s, model=%s, base_url=%s", body.provider_type, body.model, body.base_url)
-    save_ai_config(DEFAULT_DB_PATH, body.base_url, body.api_key, body.model, body.provider_type)
+    save_ai_config(body.base_url, body.api_key, body.model, body.provider_type)
     return {"status": "ok"}
 
 
 @router.delete("/ai")
 async def delete_config() -> dict[str, str]:
     logger.debug("Delete AI config")
-    delete_ai_config(DEFAULT_DB_PATH)
+    delete_ai_config()
     return {"status": "ok"}
 
 
@@ -88,12 +87,12 @@ async def test_connection(body: AiTestInput | None = None) -> dict[str, str]:
         model = body.model
         provider_type = body.provider_type
         if not api_key:
-            full_config = get_full_ai_config(DEFAULT_DB_PATH)
+            full_config = get_full_ai_config()
             api_key = full_config["api_key"] if full_config else ""
         if not api_key:
             raise HTTPException(status_code=400, detail="No API key provided")
     else:
-        full_config = get_full_ai_config(DEFAULT_DB_PATH)
+        full_config = get_full_ai_config()
         if full_config is None:
             raise HTTPException(status_code=400, detail="No AI provider configured")
         base_url = full_config["base_url"]
@@ -157,7 +156,7 @@ async def get_presets() -> list[dict[str, object]]:
 
 @router.get("/ai-analysis")
 async def get_analysis_settings() -> dict[str, str]:
-    settings = get_ai_analysis_settings(DEFAULT_DB_PATH)
+    settings = get_ai_analysis_settings()
     logger.debug("Get AI analysis settings: %s", settings)
     return settings
 
@@ -166,7 +165,7 @@ async def get_analysis_settings() -> dict[str, str]:
 async def save_analysis_settings(body: AiAnalysisSettingsInput) -> dict[str, str]:
     logger.debug("Save AI analysis settings: site_profile=%s", body.site_profile)
     try:
-        save_ai_analysis_settings(DEFAULT_DB_PATH, body.site_profile)
+        save_ai_analysis_settings(body.site_profile)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"status": "ok"}

@@ -504,7 +504,10 @@ class TestOverlappingAllowBlock:
 
     def test_block_then_narrower_allow_flags_overlap(self) -> None:
         rules = [
-            _rule(rule_id="r1", action="BLOCK", protocol="tcp", port_ranges=["80-443"], index=100, connection_logging=True),
+            _rule(
+                rule_id="r1", action="BLOCK", protocol="tcp",
+                port_ranges=["80-443"], index=100, connection_logging=True,
+            ),
             _rule(
                 rule_id="r2",
                 action="ALLOW",

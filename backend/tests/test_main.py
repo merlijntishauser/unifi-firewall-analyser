@@ -155,22 +155,24 @@ def test_log_startup_banner_shows_auth_enabled(monkeypatch: pytest.MonkeyPatch) 
 
 
 def test_check_plaintext_db_key_warns_when_key_in_db(tmp_path: Path) -> None:
-    from app.database import init_db
+    from app.database import init_db_for_tests, reset_engine
     from app.services.ai_settings import save_ai_config
 
     db_path = tmp_path / "test.db"
-    init_db(db_path)
-    save_ai_config(db_path, "https://api.openai.com/v1", "sk-secret", "gpt-4o", "openai")
+    init_db_for_tests(db_path)
+    save_ai_config("https://api.openai.com/v1", "sk-secret", "gpt-4o", "openai")
 
-    with (
-        patch("app.main.app_settings") as mock_settings,
-        patch("app.main.DEFAULT_DB_PATH", db_path),
-        patch("app.main.startup_logger.warning") as mock_warn,
-    ):
-        mock_settings.app_password = "secret"
-        _check_plaintext_db_key()
-    mock_warn.assert_called_once()
-    assert "plaintext" in mock_warn.call_args[0][0].lower()
+    try:
+        with (
+            patch("app.main.app_settings") as mock_settings,
+            patch("app.main.startup_logger.warning") as mock_warn,
+        ):
+            mock_settings.app_password = "secret"
+            _check_plaintext_db_key()
+        mock_warn.assert_called_once()
+        assert "plaintext" in mock_warn.call_args[0][0].lower()
+    finally:
+        reset_engine()
 
 
 def test_check_plaintext_db_key_silent_without_app_password() -> None:
@@ -184,19 +186,21 @@ def test_check_plaintext_db_key_silent_without_app_password() -> None:
 
 
 def test_check_plaintext_db_key_silent_when_no_key_in_db(tmp_path: Path) -> None:
-    from app.database import init_db
+    from app.database import init_db_for_tests, reset_engine
 
     db_path = tmp_path / "test.db"
-    init_db(db_path)
+    init_db_for_tests(db_path)
 
-    with (
-        patch("app.main.app_settings") as mock_settings,
-        patch("app.main.DEFAULT_DB_PATH", db_path),
-        patch("app.main.startup_logger.warning") as mock_warn,
-    ):
-        mock_settings.app_password = "secret"
-        _check_plaintext_db_key()
-    mock_warn.assert_not_called()
+    try:
+        with (
+            patch("app.main.app_settings") as mock_settings,
+            patch("app.main.startup_logger.warning") as mock_warn,
+        ):
+            mock_settings.app_password = "secret"
+            _check_plaintext_db_key()
+        mock_warn.assert_not_called()
+    finally:
+        reset_engine()
 
 
 @pytest.mark.anyio

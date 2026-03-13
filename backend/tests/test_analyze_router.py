@@ -1,18 +1,19 @@
+from collections.abc import Iterator
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
 
-from app.database import init_db
+from app.database import init_db_for_tests, reset_engine
 from app.models import AiAnalysisResult, FindingModel
 
 
 @pytest.fixture(autouse=True)
-def _use_test_db(tmp_path, monkeypatch):
-    db_path = tmp_path / "test.db"
-    init_db(db_path)
-    monkeypatch.setattr("app.routers.analyze.DEFAULT_DB_PATH", db_path)
-    return db_path
+def _use_test_db(tmp_path: Path) -> Iterator[None]:
+    init_db_for_tests(tmp_path / "test.db")
+    yield
+    reset_engine()
 
 
 @pytest.mark.anyio

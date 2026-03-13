@@ -1,24 +1,25 @@
 """Tests for settings router."""
 
+from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 from httpx import AsyncClient, ConnectError, Request, Response
 
-from app.database import init_db
+from app.database import init_db_for_tests, reset_engine
 
 
 @pytest.fixture(autouse=True)
-def _use_test_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    db_path = tmp_path / "test.db"
-    init_db(db_path)
-    monkeypatch.setattr("app.routers.settings.DEFAULT_DB_PATH", db_path)
+def _use_test_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    init_db_for_tests(tmp_path / "test.db")
     monkeypatch.delenv("AI_API_KEY", raising=False)
     monkeypatch.delenv("AI_API_KEY_FILE", raising=False)
     monkeypatch.delenv("AI_BASE_URL", raising=False)
     monkeypatch.delenv("AI_MODEL", raising=False)
     monkeypatch.delenv("AI_PROVIDER_TYPE", raising=False)
+    yield
+    reset_engine()
 
 
 @pytest.mark.anyio

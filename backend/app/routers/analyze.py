@@ -5,7 +5,6 @@ import logging
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from app.database import DEFAULT_DB_PATH
 from app.models import AiAnalysisResult, Rule
 from app.services.ai_analyzer import analyze_with_ai
 from app.services.analyzer import analyze_zone_pair
@@ -35,7 +34,6 @@ async def analyze(body: AnalyzeRequest) -> AiAnalysisResult:
         body.rules,
         body.source_zone_name,
         body.destination_zone_name,
-        db_path=DEFAULT_DB_PATH,
         static_findings=static_result.findings,
     )
     logger.debug("AI analysis result: status=%s, findings=%d", result.status, len(result.findings))

@@ -6,12 +6,12 @@ import hashlib
 import json
 import logging
 from datetime import UTC, datetime
-from pathlib import Path
 
 import httpx
 
-from app.database import DEFAULT_DB_PATH, get_connection
+from app.database import get_session
 from app.models import AiAnalysisResult, FindingModel, Rule
+from app.models_db import AiAnalysisCacheRow
 from app.services.ai_settings import get_ai_analysis_settings, get_full_ai_config
 from app.services.analyzer import Finding
 
@@ -86,31 +86,40 @@ def _build_cache_key(
     return hashlib.sha256(content.encode()).hexdigest()
 
 
-def _get_cached(db_path: Path, cache_key: str) -> list[dict] | None:  # type: ignore[type-arg]
+def _get_cached(cache_key: str) -> list[dict] | None:  # type: ignore[type-arg]
     """Check cache for existing analysis."""
-    conn = get_connection(db_path)
-    row = conn.execute(
-        "SELECT findings FROM ai_analysis_cache WHERE cache_key = ?",
-        (cache_key,),
-    ).fetchone()
-    conn.close()
+    session = get_session()
+    try:
+        row = session.get(AiAnalysisCacheRow, cache_key)
+    finally:
+        session.close()
     if row is None:
         return None
-    return json.loads(row[0])  # type: ignore[no-any-return]
+    return json.loads(row.findings)  # type: ignore[no-any-return]
 
 
 def _save_cache(
-    db_path: Path, cache_key: str, zone_pair_key: str, findings: list[dict]  # type: ignore[type-arg]
+    cache_key: str, zone_pair_key: str, findings: list[dict]  # type: ignore[type-arg]
 ) -> None:
     """Save analysis results to cache."""
-    conn = get_connection(db_path)
-    conn.execute(
-        """INSERT OR REPLACE INTO ai_analysis_cache (cache_key, zone_pair_key, findings, created_at)
-           VALUES (?, ?, ?, ?)""",
-        (cache_key, zone_pair_key, json.dumps(findings), datetime.now(UTC).isoformat()),
-    )
-    conn.commit()
-    conn.close()
+    session = get_session()
+    try:
+        row = session.get(AiAnalysisCacheRow, cache_key)
+        if row is None:
+            row = AiAnalysisCacheRow(
+                cache_key=cache_key,
+                zone_pair_key=zone_pair_key,
+                findings=json.dumps(findings),
+                created_at=datetime.now(UTC).isoformat(),
+            )
+            session.add(row)
+        else:
+            row.zone_pair_key = zone_pair_key
+            row.findings = json.dumps(findings)
+            row.created_at = datetime.now(UTC).isoformat()
+        session.commit()
+    finally:
+        session.close()
 
 
 def _summarize_static_findings(findings: list[Finding]) -> str:
@@ -236,16 +245,15 @@ async def analyze_with_ai(
     rules: list[Rule],
     src_zone_name: str,
     dst_zone_name: str,
-    db_path: Path = DEFAULT_DB_PATH,
     static_findings: list[Finding] | None = None,
 ) -> AiAnalysisResult:
     """Analyze rules with AI. Returns explicit status instead of empty list on error."""
-    config = get_full_ai_config(db_path)
+    config = get_full_ai_config()
     if config is None:
         logger.debug("No AI config found, skipping analysis")
         return AiAnalysisResult(status="error", message="No AI provider configured")
 
-    analysis_settings = get_ai_analysis_settings(db_path)
+    analysis_settings = get_ai_analysis_settings()
     site_profile = analysis_settings["site_profile"]
     model = config["model"]
     static_summary = _summarize_static_findings(static_findings or [])
@@ -257,7 +265,7 @@ async def analyze_with_ai(
     logger.debug("AI analysis for %s (cache_key=%s, profile=%s)", zone_pair_key, cache_key[:12], site_profile)
 
     # Check cache
-    cached = _get_cached(db_path, cache_key)
+    cached = _get_cached(cache_key)
     if cached is not None:
         logger.debug("Cache hit for %s (%d findings)", zone_pair_key, len(cached))
         return AiAnalysisResult(status="ok", findings=_findings_from_raw(cached), cached=True)
@@ -297,5 +305,5 @@ async def analyze_with_ai(
         return AiAnalysisResult(status="error", message="Failed to parse AI response")
 
     logger.debug("AI returned %d findings for %s", len(raw_findings), zone_pair_key)
-    _save_cache(db_path, cache_key, zone_pair_key, raw_findings)
+    _save_cache(cache_key, zone_pair_key, raw_findings)
     return AiAnalysisResult(status="ok", findings=_findings_from_raw(raw_findings), cached=False)

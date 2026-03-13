@@ -1,20 +1,21 @@
 """Tests for zone filter router."""
 
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 from httpx import AsyncClient
 
-from app.database import init_db
+from app.database import init_db_for_tests, reset_engine
 
 pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture(autouse=True)
-def _use_test_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    db_path = tmp_path / "test.db"
-    init_db(db_path)
-    monkeypatch.setattr("app.routers.zone_filter.DEFAULT_DB_PATH", db_path)
+def _use_test_db(tmp_path: Path) -> Iterator[None]:
+    init_db_for_tests(tmp_path / "test.db")
+    yield
+    reset_engine()
 
 
 async def test_get_hidden_zones_empty(client: AsyncClient) -> None:

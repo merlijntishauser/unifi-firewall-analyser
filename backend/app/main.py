@@ -63,18 +63,19 @@ def _check_plaintext_db_key() -> None:
     """Warn if AI API key is stored in plaintext DB while app auth is enabled."""
     if not app_settings.app_password:
         return
-    import sqlite3
-    if not DEFAULT_DB_PATH.exists():
-        return
+    from app.database import get_session
+    from app.models_db import AiConfigRow
     try:
-        conn = sqlite3.connect(DEFAULT_DB_PATH)
-        row = conn.execute("SELECT api_key FROM ai_config WHERE id = 1").fetchone()
-        conn.close()
-        if row and row[0]:
-            startup_logger.warning(
-                "AI API key stored in plaintext database. In production, use AI_API_KEY env var instead."
-            )
-    except sqlite3.OperationalError:
+        session = get_session()
+        try:
+            row = session.get(AiConfigRow, 1)
+            if row and row.api_key:
+                startup_logger.warning(
+                    "AI API key stored in plaintext database. In production, use AI_API_KEY env var instead."
+                )
+        finally:
+            session.close()
+    except Exception:
         pass
 
 

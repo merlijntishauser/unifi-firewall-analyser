@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
 
-from app.database import get_connection, init_db
+from app.database import get_session, init_db_for_tests, reset_engine
 from app.models import Rule
+from app.models_db import AiAnalysisCacheRow
 from app.services.ai_analyzer import (
     AI_PROMPT_VERSION,
     _build_cache_key,
@@ -87,17 +89,17 @@ def _clear_ai_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("AI_PROVIDER_TYPE", raising=False)
 
 
-@pytest.fixture
-def db_path(tmp_path: Path) -> Path:
-    path = tmp_path / "test.db"
-    init_db(path)
-    return path
+@pytest.fixture(autouse=True)
+def _test_db(tmp_path: Path) -> Iterator[None]:
+    init_db_for_tests(tmp_path / "test.db")
+    yield
+    reset_engine()
 
 
 class TestNoConfigReturnsError:
     @pytest.mark.anyio
-    async def test_no_config_returns_error_status(self, db_path: Path) -> None:
-        result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN", db_path)
+    async def test_no_config_returns_error_status(self) -> None:
+        result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN")
         assert result.status == "error"
         assert result.message == "No AI provider configured"
         assert result.findings == []
@@ -106,16 +108,16 @@ class TestNoConfigReturnsError:
 
 class TestCacheHit:
     @pytest.mark.anyio
-    async def test_cache_hit_returns_cached_findings(self, db_path: Path) -> None:
-        save_ai_config(db_path, "http://test-api.com/v1", "test-key", "test-model", "openai")
+    async def test_cache_hit_returns_cached_findings(self) -> None:
+        save_ai_config("http://test-api.com/v1", "test-key", "test-model", "openai")
         cache_key = _build_cache_key(
             SAMPLE_RULES, "LAN", "WAN", "test-model", "homelab", AI_PROMPT_VERSION,
             "No static analysis findings.",
         )
-        _save_cache(db_path, cache_key, "LAN->WAN", SAMPLE_FINDINGS_RAW)
+        _save_cache(cache_key, "LAN->WAN", SAMPLE_FINDINGS_RAW)
 
         with patch("app.services.ai_analyzer.httpx") as mock_httpx:
-            result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN", db_path)
+            result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN")
             mock_httpx.post.assert_not_called()
 
         assert result.status == "ok"
@@ -127,8 +129,8 @@ class TestCacheHit:
 
 class TestOpenAIProviderCall:
     @pytest.mark.anyio
-    async def test_openai_call_returns_findings(self, db_path: Path) -> None:
-        save_ai_config(db_path, "http://test-api.com/v1", "test-key", "test-model", "openai")
+    async def test_openai_call_returns_findings(self) -> None:
+        save_ai_config("http://test-api.com/v1", "test-key", "test-model", "openai")
 
         mock_response = MagicMock()
         mock_response.json.return_value = {
@@ -137,7 +139,7 @@ class TestOpenAIProviderCall:
         mock_response.raise_for_status = MagicMock()
 
         with patch("app.services.ai_analyzer.httpx.post", return_value=mock_response):
-            result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN", db_path)
+            result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN")
 
         assert result.status == "ok"
         assert result.cached is False
@@ -152,10 +154,8 @@ class TestOpenAIProviderCall:
 
 class TestAnthropicProviderCall:
     @pytest.mark.anyio
-    async def test_anthropic_call_returns_findings(self, db_path: Path) -> None:
-        save_ai_config(
-            db_path, "http://test-api.com/v1", "test-key", "test-model", "anthropic"
-        )
+    async def test_anthropic_call_returns_findings(self) -> None:
+        save_ai_config("http://test-api.com/v1", "test-key", "test-model", "anthropic")
 
         mock_response = MagicMock()
         mock_response.json.return_value = {
@@ -164,7 +164,7 @@ class TestAnthropicProviderCall:
         mock_response.raise_for_status = MagicMock()
 
         with patch("app.services.ai_analyzer.httpx.post", return_value=mock_response) as mock_post:
-            result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN", db_path)
+            result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN")
 
         assert result.status == "ok"
         assert len(result.findings) == 2
@@ -176,8 +176,8 @@ class TestAnthropicProviderCall:
 
 class TestInvalidJsonFromLLM:
     @pytest.mark.anyio
-    async def test_invalid_json_returns_error(self, db_path: Path) -> None:
-        save_ai_config(db_path, "http://test-api.com/v1", "test-key", "test-model", "openai")
+    async def test_invalid_json_returns_error(self) -> None:
+        save_ai_config("http://test-api.com/v1", "test-key", "test-model", "openai")
 
         mock_response = MagicMock()
         mock_response.json.return_value = {
@@ -186,7 +186,7 @@ class TestInvalidJsonFromLLM:
         mock_response.raise_for_status = MagicMock()
 
         with patch("app.services.ai_analyzer.httpx.post", return_value=mock_response):
-            result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN", db_path)
+            result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN")
 
         assert result.status == "error"
         assert "parse" in (result.message or "").lower()
@@ -195,44 +195,44 @@ class TestInvalidJsonFromLLM:
 
 class TestHTTPErrorReturnsError:
     @pytest.mark.anyio
-    async def test_http_error_returns_error_status(self, db_path: Path) -> None:
-        save_ai_config(db_path, "http://test-api.com/v1", "test-key", "test-model", "openai")
+    async def test_http_error_returns_error_status(self) -> None:
+        save_ai_config("http://test-api.com/v1", "test-key", "test-model", "openai")
 
         mock_response = MagicMock(status_code=500)
         mock_response.text = "Internal Server Error"
         exc = httpx.HTTPStatusError("500", response=mock_response, request=MagicMock())
         with patch("app.services.ai_analyzer.httpx.post", side_effect=exc):
-            result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN", db_path)
+            result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN")
 
         assert result.status == "error"
         assert "500" in (result.message or "")
 
     @pytest.mark.anyio
-    async def test_timeout_returns_error_status(self, db_path: Path) -> None:
-        save_ai_config(db_path, "http://test-api.com/v1", "test-key", "test-model", "openai")
+    async def test_timeout_returns_error_status(self) -> None:
+        save_ai_config("http://test-api.com/v1", "test-key", "test-model", "openai")
 
         with patch("app.services.ai_analyzer.httpx.post", side_effect=httpx.TimeoutException("timed out")):
-            result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN", db_path)
+            result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN")
 
         assert result.status == "error"
         assert "timed out" in (result.message or "").lower()
 
     @pytest.mark.anyio
-    async def test_connection_error_returns_error_status(self, db_path: Path) -> None:
-        save_ai_config(db_path, "http://test-api.com/v1", "test-key", "test-model", "openai")
+    async def test_connection_error_returns_error_status(self) -> None:
+        save_ai_config("http://test-api.com/v1", "test-key", "test-model", "openai")
 
         with patch("app.services.ai_analyzer.httpx.post", side_effect=httpx.ConnectError("refused")):
-            result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN", db_path)
+            result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN")
 
         assert result.status == "error"
         assert "connection" in (result.message or "").lower()
 
     @pytest.mark.anyio
-    async def test_unexpected_error_returns_error_status(self, db_path: Path) -> None:
-        save_ai_config(db_path, "http://test-api.com/v1", "test-key", "test-model", "openai")
+    async def test_unexpected_error_returns_error_status(self) -> None:
+        save_ai_config("http://test-api.com/v1", "test-key", "test-model", "openai")
 
         with patch("app.services.ai_analyzer.httpx.post", side_effect=RuntimeError("unexpected")):
-            result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN", db_path)
+            result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN")
 
         assert result.status == "error"
         assert "unexpected" in (result.message or "").lower()
@@ -240,8 +240,8 @@ class TestHTTPErrorReturnsError:
 
 class TestResultsCachedAfterCall:
     @pytest.mark.anyio
-    async def test_results_cached(self, db_path: Path) -> None:
-        save_ai_config(db_path, "http://test-api.com/v1", "test-key", "test-model", "openai")
+    async def test_results_cached(self) -> None:
+        save_ai_config("http://test-api.com/v1", "test-key", "test-model", "openai")
 
         mock_response = MagicMock()
         mock_response.json.return_value = {
@@ -250,7 +250,7 @@ class TestResultsCachedAfterCall:
         mock_response.raise_for_status = MagicMock()
 
         with patch("app.services.ai_analyzer.httpx.post", return_value=mock_response):
-            result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN", db_path)
+            result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN")
 
         assert result.status == "ok"
 
@@ -259,26 +259,25 @@ class TestResultsCachedAfterCall:
             SAMPLE_RULES, "LAN", "WAN", "test-model", "homelab", AI_PROMPT_VERSION,
             "No static analysis findings.",
         )
-        cached = _get_cached(db_path, cache_key)
+        cached = _get_cached(cache_key)
         assert cached is not None
         assert len(cached) == 2
         assert cached[0]["title"] == "Broad allow rule"
 
-        # Also verify directly in DB
-        conn = get_connection(db_path)
-        row = conn.execute(
-            "SELECT zone_pair_key FROM ai_analysis_cache WHERE cache_key = ?",
-            (cache_key,),
-        ).fetchone()
-        conn.close()
-        assert row is not None
-        assert row[0] == "LAN->WAN"
+        # Also verify directly in DB via ORM
+        session = get_session()
+        try:
+            row = session.get(AiAnalysisCacheRow, cache_key)
+            assert row is not None
+            assert row.zone_pair_key == "LAN->WAN"
+        finally:
+            session.close()
 
 
 class TestFindingsHaveSourceAI:
     @pytest.mark.anyio
-    async def test_source_is_ai(self, db_path: Path) -> None:
-        save_ai_config(db_path, "http://test-api.com/v1", "test-key", "test-model", "openai")
+    async def test_source_is_ai(self) -> None:
+        save_ai_config("http://test-api.com/v1", "test-key", "test-model", "openai")
 
         mock_response = MagicMock()
         mock_response.json.return_value = {
@@ -287,21 +286,21 @@ class TestFindingsHaveSourceAI:
         mock_response.raise_for_status = MagicMock()
 
         with patch("app.services.ai_analyzer.httpx.post", return_value=mock_response):
-            result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN", db_path)
+            result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN")
 
         for finding in result.findings:
             assert finding.source == "ai"
 
     @pytest.mark.anyio
-    async def test_cached_findings_also_have_source_ai(self, db_path: Path) -> None:
-        save_ai_config(db_path, "http://test-api.com/v1", "test-key", "test-model", "openai")
+    async def test_cached_findings_also_have_source_ai(self) -> None:
+        save_ai_config("http://test-api.com/v1", "test-key", "test-model", "openai")
         cache_key = _build_cache_key(
             SAMPLE_RULES, "LAN", "WAN", "test-model", "homelab", AI_PROMPT_VERSION,
             "No static analysis findings.",
         )
-        _save_cache(db_path, cache_key, "LAN->WAN", SAMPLE_FINDINGS_RAW)
+        _save_cache(cache_key, "LAN->WAN", SAMPLE_FINDINGS_RAW)
 
-        result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN", db_path)
+        result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN")
         for finding in result.findings:
             assert finding.source == "ai"
 
@@ -498,8 +497,8 @@ class TestSummarizeStaticFindings:
 
 class TestStaticFindingsPassedToAI:
     @pytest.mark.anyio
-    async def test_static_findings_included_in_prompt(self, db_path: Path) -> None:
-        save_ai_config(db_path, "http://test-api.com/v1", "test-key", "test-model", "openai")
+    async def test_static_findings_included_in_prompt(self) -> None:
+        save_ai_config("http://test-api.com/v1", "test-key", "test-model", "openai")
 
         mock_response = MagicMock()
         mock_response.json.return_value = {
@@ -510,7 +509,7 @@ class TestStaticFindingsPassedToAI:
         static = [Finding(id="f1", severity="high", title="Test finding", description="desc")]
 
         with patch("app.services.ai_analyzer.httpx.post", return_value=mock_response) as mock_post:
-            await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN", db_path, static_findings=static)
+            await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN", static_findings=static)
 
         # Check that the user prompt contains the static finding
         call_args = mock_post.call_args
