@@ -17,16 +17,16 @@ export default function ZoneMatrix({ zones, zonePairs, onCellClick, onZoneClick 
   const size = zones.length;
 
   return (
-    <div className="h-full flex items-center justify-center p-8 overflow-auto bg-gray-50 dark:bg-noc-bg">
+    <div className="h-full flex items-start justify-center p-8 overflow-auto bg-gray-50 dark:bg-noc-bg">
       <div
         className="grid gap-1"
         style={{
-          gridTemplateColumns: `auto repeat(${size}, minmax(52px, 84px))`,
-          gridTemplateRows: `auto repeat(${size}, minmax(52px, 84px))`,
+          gridTemplateColumns: `auto repeat(${size}, minmax(72px, 108px))`,
+          gridTemplateRows: `auto repeat(${size}, minmax(72px, 108px))`,
         }}
       >
         {/* Top-left empty corner */}
-        <div />
+        <div className="sticky top-0 left-0 z-20 bg-gray-50 dark:bg-noc-bg" />
 
         {/* Column headers */}
         {zones.map((zone) => (
@@ -34,7 +34,7 @@ export default function ZoneMatrix({ zones, zonePairs, onCellClick, onZoneClick 
             key={`col-${zone.id}`}
             data-testid={`col-header-${zone.id}`}
             onClick={() => onZoneClick(zone.id)}
-            className="text-xs font-display font-medium text-gray-600 dark:text-noc-text-secondary truncate px-1 pb-2 hover:text-ub-blue cursor-pointer text-center transition-colors"
+            className="sticky top-0 z-10 bg-gray-50 dark:bg-noc-bg text-xs font-display font-medium text-gray-600 dark:text-noc-text-secondary truncate px-1 pb-2 hover:text-ub-blue cursor-pointer text-center transition-colors"
             style={{ writingMode: "vertical-lr", transform: "rotate(180deg)" }}
           >
             {zone.name}
@@ -48,7 +48,7 @@ export default function ZoneMatrix({ zones, zonePairs, onCellClick, onZoneClick 
             <button
               data-testid={`row-header-${srcZone.id}`}
               onClick={() => onZoneClick(srcZone.id)}
-              className="text-xs font-display font-medium text-gray-600 dark:text-noc-text-secondary truncate pr-3 flex items-center hover:text-ub-blue cursor-pointer transition-colors"
+              className="sticky left-0 z-10 bg-gray-50 dark:bg-noc-bg text-xs font-display font-medium text-gray-600 dark:text-noc-text-secondary truncate pr-3 flex items-center hover:text-ub-blue cursor-pointer transition-colors"
             >
               {srcZone.name}
             </button>

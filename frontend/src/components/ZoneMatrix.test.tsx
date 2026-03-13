@@ -133,4 +133,24 @@ describe("ZoneMatrix", () => {
     );
     expect(screen.queryByTestId("row-header-z1")).not.toBeInTheDocument();
   });
+
+  it("applies sticky classes to column headers", () => {
+    render(
+      <ZoneMatrix zones={zones} zonePairs={zonePairs} onCellClick={onCellClick} onZoneClick={onZoneClick} />,
+    );
+    const colHeader = screen.getByTestId("col-header-z1");
+    expect(colHeader.className).toContain("sticky");
+    expect(colHeader.className).toContain("top-0");
+    expect(colHeader.className).toContain("z-10");
+  });
+
+  it("applies sticky classes to row headers", () => {
+    render(
+      <ZoneMatrix zones={zones} zonePairs={zonePairs} onCellClick={onCellClick} onZoneClick={onZoneClick} />,
+    );
+    const rowHeader = screen.getByTestId("row-header-z1");
+    expect(rowHeader.className).toContain("sticky");
+    expect(rowHeader.className).toContain("left-0");
+    expect(rowHeader.className).toContain("z-10");
+  });
 });

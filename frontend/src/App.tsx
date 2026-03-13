@@ -4,15 +4,13 @@ import type { ZonePair } from "./api/types";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   queryKeys,
-  useAppAuthStatus,
-  useAuthStatus,
-  useZones,
-  useZonePairs,
-  useAiConfig,
   useZoneFilter,
   useLogout,
   useSaveZoneFilter,
 } from "./hooks/queries";
+import { useAuthFlow } from "./hooks/useAuth";
+import { useFirewallQueries } from "./hooks/useFirewallQueries";
+import { useAiInfo } from "./hooks/useAiInfo";
 import LoginScreen from "./components/LoginScreen";
 import MatrixSidebar from "./components/MatrixSidebar";
 import PassphraseScreen from "./components/PassphraseScreen";
@@ -21,49 +19,6 @@ import Toolbar from "./components/Toolbar";
 import ZoneGraph from "./components/ZoneGraph";
 import ZoneMatrix from "./components/ZoneMatrix";
 import RulePanel from "./components/RulePanel";
-
-interface AiInfo {
-  configured: boolean;
-  provider: string;
-  model: string;
-}
-
-function useAuthFlow() {
-  const appAuth = useAppAuthStatus();
-  const appAuthRequired = appAuth.data?.required ?? false;
-  const appAuthenticated = appAuth.data?.authenticated ?? false;
-  const appAuthResolved = !appAuth.isLoading;
-
-  const shouldCheckUnifi = appAuthResolved && (!appAuthRequired || appAuthenticated);
-  const authQuery = useAuthStatus(shouldCheckUnifi);
-  const authed = authQuery.data?.configured ?? false;
-  const authLoading = appAuth.isLoading || (shouldCheckUnifi && authQuery.isLoading);
-  const connectionInfo = useMemo(
-    () => authed ? { url: authQuery.data!.url, username: authQuery.data!.username, source: authQuery.data!.source } : null,
-    [authed, authQuery.data],
-  );
-
-  return { appAuthRequired, appAuthenticated, authed, authLoading, connectionInfo, refetchAppAuth: appAuth.refetch, refetchAuth: authQuery.refetch };
-}
-
-function useFirewallQueries(enabled: boolean) {
-  const zonesQuery = useZones(enabled);
-  const zonePairsQuery = useZonePairs(enabled);
-  const zones = useMemo(() => zonesQuery.data ?? [], [zonesQuery.data]);
-  const zonePairs = useMemo(() => zonePairsQuery.data ?? [], [zonePairsQuery.data]);
-  return { zones, zonePairs, dataLoading: zonesQuery.isLoading || zonePairsQuery.isLoading, dataError: zonesQuery.error ?? zonePairsQuery.error };
-}
-
-function useAiInfo(enabled: boolean): { aiConfigured: boolean; aiInfo: AiInfo } {
-  const aiConfigQuery = useAiConfig(enabled);
-  const aiConfigured = aiConfigQuery.data?.has_key ?? false;
-  const aiInfo: AiInfo = useMemo(() => ({
-    configured: aiConfigQuery.data?.has_key ?? false,
-    provider: aiConfigQuery.data?.provider_type ?? "",
-    model: aiConfigQuery.data?.model ?? "",
-  }), [aiConfigQuery.data]);
-  return { aiConfigured, aiInfo };
-}
 
 interface AppState {
   colorMode: ColorMode;
