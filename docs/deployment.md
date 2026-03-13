@@ -8,6 +8,8 @@ docker run -d \
   -v analyser-data:/data \
   -e APP_PASSWORD=your-secret-passphrase \
   -e AI_API_KEY=sk-your-api-key \
+  -e AI_BASE_URL=https://api.openai.com/v1 \
+  -e AI_MODEL=gpt-4o \
   ghcr.io/your-org/unifi-firewall-analyser:latest
 ```
 
@@ -60,9 +62,17 @@ services:
     volumes:
       - analyser-data:/data
     environment:
+      # App auth (optional)
       - APP_PASSWORD=your-secret-passphrase
+      # UniFi controller (optional -- can also log in via the UI)
+      - UNIFI_URL=https://192.168.1.1
+      - UNIFI_USER=admin
+      - UNIFI_PASS=changeme
+      # AI provider (optional -- can also configure via Settings UI)
       - AI_API_KEY=sk-your-api-key
-      - LOG_LEVEL=INFO
+      - AI_BASE_URL=https://api.openai.com/v1
+      - AI_MODEL=gpt-4o
+      # - AI_PROVIDER_TYPE=openai
 
 volumes:
   analyser-data:
@@ -70,7 +80,7 @@ volumes:
 
 ## Docker Compose with secrets
 
-For environments where environment variables are logged or visible in process listings, use Docker secrets:
+For environments where environment variables are logged or visible in process listings, use Docker secrets for the AI API key:
 
 ```yaml
 services:
@@ -84,6 +94,8 @@ services:
     environment:
       - APP_PASSWORD=your-secret-passphrase
       - AI_API_KEY_FILE=/run/secrets/ai_api_key
+      - AI_BASE_URL=https://api.openai.com/v1
+      - AI_MODEL=gpt-4o
     secrets:
       - ai_api_key
 
@@ -109,6 +121,8 @@ services:
     environment:
       - APP_PASSWORD=your-secret-passphrase
       - AI_API_KEY=sk-your-api-key
+      - AI_BASE_URL=https://api.openai.com/v1
+      - AI_MODEL=gpt-4o
       - APP_ACCESS_URL=https://firewall.example.com
     labels:
       - "traefik.enable=true"
