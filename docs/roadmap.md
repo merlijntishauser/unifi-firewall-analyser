@@ -1,6 +1,6 @@
 # Product Roadmap
 
-Last updated: 2026-03-12
+Last updated: 2026-03-13
 
 ## Current Assessment
 
@@ -30,29 +30,29 @@ Why this is first:
 - Recent analyzer improvements reduced obvious false positives, but the model still does not fully cover the full UniFi rule surface.
 - AI analysis only adds value if the deterministic baseline is trusted first.
 
-#### Phase 1: Static analysis, simulator parity, and golden tests
+#### Phase 1: Static analysis, simulator parity, and golden tests -- DONE
 
-What to ship:
+Shipped:
 
-- Extend the simulator to match against all resolvable Rule constraints (IP ranges, address groups, source ports, port groups). For constraints it cannot evaluate (MAC addresses, schedules, IPSec, connection state), report them as unresolvable in the evaluation trace rather than silently skipping them.
-- Add five new static analyzer checks: no connection state tracking (high), overlapping allow/block interactions (medium), broad address group resolution (medium), missing logging on block rules (low), and schedule-dependent allows (low).
-- Add structured `rationale` to all findings explaining why each issue is flagged.
-- Polish the RulePanel UI: collapsible rationale, severity-grouped findings, visual pass/fail/unknown evaluation traces, assumption banners on simulation results.
-- Build 6 hand-crafted golden test fixtures covering clean, permissive, exposed, complex-interaction, constrained, and large-ruleset scenarios as regression anchors.
+- Extended the simulator to match against all resolvable Rule constraints (IP ranges, address groups, source ports, port groups). Constraints it cannot evaluate (MAC addresses, schedules, IPSec, connection state) are reported as unresolvable in the evaluation trace.
+- Added five new static analyzer checks: no connection state tracking (high), overlapping allow/block interactions (medium), broad address group resolution (medium), missing logging on block rules (low), and schedule-dependent allows (low).
+- Added structured `rationale` to all findings explaining why each issue is flagged.
+- Polished the RulePanel UI: collapsible rationale, severity-grouped findings, visual pass/fail/unknown evaluation traces, assumption banners on simulation results.
+- Built 6 hand-crafted golden test fixtures covering clean, permissive, exposed, complex-interaction, constrained, and large-ruleset scenarios as regression anchors.
 
 Related design:
 
 - [Analysis Fidelity and Explainability Design](plans/2026-03-12-analysis-fidelity-design.md)
 
-#### Phase 2: AI analysis reliability
+#### Phase 2: AI analysis reliability -- DONE
 
-What to ship:
+Shipped:
 
-- Split AI provider transport settings from AI analysis settings instead of overloading one config object.
-- Add `site_profile` as analysis context with `homelab`, `smb`, and `enterprise`, but use it to tune prioritization and remediation rather than hard facts.
-- Version the AI prompt and include prompt/context inputs in the cache key so model, profile, and prompt changes cannot reuse stale findings.
-- Return explicit AI failure states instead of collapsing provider or parse failures into an empty findings list.
-- Strengthen AI findings so they can become more traceable and actionable over time.
+- Split AI provider transport settings from AI analysis settings with separate `ai_analysis_settings` SQLite table and API endpoints.
+- Added `site_profile` as analysis context (`homelab`, `smb`, `enterprise`) with tailored AI prompt guidance.
+- Versioned the AI prompt (`AI_PROMPT_VERSION`) and expanded the cache key to include model, site_profile, prompt_version, and static_summary.
+- Explicit AI failure states via `AiAnalysisResult` model with `status`, `cached`, and `message` fields instead of collapsing failures into empty findings.
+- Enriched findings with `rule_ids`, `confidence`, and `recommended_action` fields for traceability and actionability.
 
 Related design:
 
