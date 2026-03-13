@@ -90,6 +90,7 @@ export interface AiConfig {
   model: string;
   provider_type: string;
   has_key: boolean;
+  key_source: "db" | "env" | "none";
   source: "db" | "env" | "none";
 }
 

@@ -41,6 +41,7 @@ def get_ai_config(db_path: Path) -> dict[str, object] | None:
             "model": model,
             "provider_type": provider_type,
             "has_key": True,
+            "key_source": "env",
             "source": "env",
         }
 
@@ -54,13 +55,16 @@ def get_ai_config(db_path: Path) -> dict[str, object] | None:
         return None
 
     env_key = _get_env_api_key()
-    has_key = bool(row["api_key"]) or bool(env_key)
-    logger.debug("AI config from db: provider=%s, model=%s, has_key=%s", row["provider_type"], row["model"], has_key)
+    db_has_key = bool(row["api_key"])
+    has_env_key = bool(env_key)
+    key_source = "db" if db_has_key else ("env" if has_env_key else "none")
+    logger.debug("AI config from db: provider=%s, model=%s, key=%s", row["provider_type"], row["model"], key_source)
     return {
         "base_url": row["base_url"],
         "model": row["model"],
         "provider_type": row["provider_type"],
-        "has_key": has_key,
+        "has_key": db_has_key or has_env_key,
+        "key_source": key_source,
         "source": "db",
     }
 

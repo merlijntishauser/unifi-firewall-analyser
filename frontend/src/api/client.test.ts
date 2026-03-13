@@ -171,7 +171,7 @@ describe("api client", () => {
 
   describe("getAiConfig", () => {
     it("fetches AI config from the correct endpoint", async () => {
-      const config = { base_url: "http://test.com", model: "gpt-4", provider_type: "openai", has_key: true, source: "db" };
+      const config = { base_url: "http://test.com", model: "gpt-4", provider_type: "openai", has_key: true, key_source: "db", source: "db" };
       mockFetch.mockResolvedValue(mockOkResponse(config));
       const result = await api.getAiConfig();
       expect(result).toEqual(config);

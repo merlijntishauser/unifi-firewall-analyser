@@ -49,6 +49,7 @@ const noConfig: AiConfig = {
   model: "",
   provider_type: "",
   has_key: false,
+  key_source: "none",
   source: "none",
 };
 
@@ -57,6 +58,7 @@ const existingConfig: AiConfig = {
   model: "gpt-4o",
   provider_type: "openai",
   has_key: true,
+  key_source: "db",
   source: "db",
 };
 
@@ -505,6 +507,7 @@ describe("SettingsModal", () => {
       model: "custom-model-7b",
       provider_type: "openai",
       has_key: true,
+      key_source: "db",
       source: "db",
     });
 
@@ -602,7 +605,7 @@ describe("SettingsModal", () => {
     expect(mockSaveAiAnalysisSettings).toHaveBeenCalledWith({ site_profile: "enterprise" });
   });
 
-  it("shows api key placeholder with existing key", async () => {
+  it("shows api key placeholder with existing db key", async () => {
     mockGetAiPresets.mockResolvedValue(testPresets);
     mockGetAiConfig.mockResolvedValue(existingConfig);
 
@@ -614,6 +617,25 @@ describe("SettingsModal", () => {
 
     const keyInput = screen.getByLabelText("API Key") as HTMLInputElement;
     expect(keyInput.placeholder).toBe("Key configured — leave blank to keep");
+  });
+
+  it("shows env key placeholder when key comes from environment", async () => {
+    mockGetAiPresets.mockResolvedValue(testPresets);
+    mockGetAiConfig.mockResolvedValue({
+      ...existingConfig,
+      has_key: true,
+      key_source: "env",
+      source: "db",
+    });
+
+    render(<SettingsModal onClose={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Provider")).toBeInTheDocument();
+    });
+
+    const keyInput = screen.getByLabelText("API Key") as HTMLInputElement;
+    expect(keyInput.placeholder).toBe("Loaded from environment");
   });
 
   it("shows fallback message when test fails with non-Error value", async () => {
@@ -642,6 +664,7 @@ describe("SettingsModal", () => {
       model: "gpt-4o",
       provider_type: "openai",
       has_key: true,
+      key_source: "env",
       source: "env",
     };
 

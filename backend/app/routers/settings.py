@@ -55,7 +55,14 @@ async def get_config() -> dict[str, object]:
     config = get_ai_config(DEFAULT_DB_PATH)
     logger.debug("Get AI config: source=%s", config.get("source") if config else "none")
     if config is None:
-        return {"source": "none", "has_key": False, "base_url": "", "model": "", "provider_type": ""}
+        return {
+            "source": "none",
+            "has_key": False,
+            "key_source": "none",
+            "base_url": "",
+            "model": "",
+            "provider_type": "",
+        }
     return config
 
 

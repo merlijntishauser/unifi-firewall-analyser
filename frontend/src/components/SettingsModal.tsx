@@ -20,6 +20,7 @@ interface SettingsState {
   models: string[];
   siteProfile: SiteProfile;
   configSource: ConfigSource;
+  keySource: ConfigSource;
   hasKey: boolean;
   saving: boolean;
   testing: boolean;
@@ -38,6 +39,7 @@ const initialSettingsState: SettingsState = {
   models: [],
   siteProfile: "homelab",
   configSource: "none",
+  keySource: "none",
   hasKey: false,
   saving: false,
   testing: false,
@@ -62,11 +64,12 @@ interface ProviderFieldsProps {
   providerType: string;
   models: string[];
   hasKey: boolean;
+  keySource: ConfigSource;
   isEnvSourced: boolean;
   dispatch: (update: Partial<SettingsState>) => void;
 }
 
-function ProviderFields({ selectedPresetId, presets, baseUrl, apiKey, model, providerType, models, hasKey, isEnvSourced, dispatch }: ProviderFieldsProps) {
+function ProviderFields({ selectedPresetId, presets, baseUrl, apiKey, model, providerType, models, hasKey, keySource, isEnvSourced, dispatch }: ProviderFieldsProps) {
   if (!selectedPresetId) return null;
 
   return (
@@ -98,7 +101,7 @@ function ProviderFields({ selectedPresetId, presets, baseUrl, apiKey, model, pro
             type="password"
             value={apiKey}
             onChange={e => dispatch({ apiKey: e.target.value })}
-            placeholder={hasKey ? "Key configured \u2014 leave blank to keep" : "Enter your API key"}
+            placeholder={keySource === "env" ? "Loaded from environment" : hasKey ? "Key configured \u2014 leave blank to keep" : "Enter your API key"}
             className={INPUT_CLASS}
           />
         )}
@@ -152,7 +155,7 @@ function ProviderFields({ selectedPresetId, presets, baseUrl, apiKey, model, pro
 
 export default function SettingsModal({ onClose }: SettingsModalProps) {
   const [state, dispatch] = useReducer(settingsReducer, initialSettingsState);
-  const { presets, selectedPresetId, baseUrl, apiKey, model, providerType, models, siteProfile, configSource, hasKey, saving, testing, testResult, error, loading } = state;
+  const { presets, selectedPresetId, baseUrl, apiKey, model, providerType, models, siteProfile, configSource, keySource, hasKey, saving, testing, testResult, error, loading } = state;
   const isEnvSourced = configSource === "env";
 
   // Load presets, current config, and analysis settings on mount
@@ -174,12 +177,13 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
             selectedPresetId: matchedPreset ? matchedPreset.id : null,
             models: matchedPreset ? matchedPreset.models : [],
             configSource: config.source,
+            keySource: config.key_source,
             hasKey: config.has_key,
             siteProfile: analysisSettings.site_profile,
             loading: false,
           });
         } else {
-          dispatch({ presets: presetsData, configSource: "none", hasKey: false, siteProfile: analysisSettings.site_profile, loading: false });
+          dispatch({ presets: presetsData, configSource: "none", keySource: "none", hasKey: false, siteProfile: analysisSettings.site_profile, loading: false });
         }
       } catch {
         dispatch({ error: "Failed to load settings", loading: false });
@@ -292,6 +296,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
               providerType={providerType}
               models={models}
               hasKey={hasKey}
+              keySource={keySource}
               isEnvSourced={isEnvSourced}
               dispatch={dispatch}
             />
