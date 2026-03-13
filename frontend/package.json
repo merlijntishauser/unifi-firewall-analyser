@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "e2e": "playwright test",
-    "e2e:headed": "playwright test --headed"
+    "e2e:headed": "playwright test --headed",
+    "e2e:prod": "playwright test --config playwright.e2e-prod.config.ts"
   },
   "dependencies": {
     "@dagrejs/dagre": "^2.0.4",
