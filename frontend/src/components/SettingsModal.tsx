@@ -183,7 +183,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
             loading: false,
           });
         } else {
-          dispatch({ presets: presetsData, configSource: "none", keySource: "none", hasKey: false, siteProfile: analysisSettings.site_profile, loading: false });
+          dispatch({ presets: presetsData, configSource: "none", keySource: config.key_source, hasKey: config.has_key, siteProfile: analysisSettings.site_profile, loading: false });
         }
       } catch {
         dispatch({ error: "Failed to load settings", loading: false });
@@ -220,13 +220,13 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   const handleTest = useCallback(async () => {
     dispatch({ testing: true, testResult: null });
     try {
-      await api.testAiConnection();
+      await api.testAiConnection({ base_url: baseUrl, api_key: apiKey, model, provider_type: providerType });
       dispatch({ testResult: { ok: true, message: "Connection successful - provider responded" }, testing: false });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Connection failed";
       dispatch({ testResult: { ok: false, message }, testing: false });
     }
-  }, []);
+  }, [baseUrl, apiKey, model, providerType]);
 
   const handleDelete = useCallback(async () => {
     try {

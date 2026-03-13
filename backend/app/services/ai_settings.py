@@ -27,7 +27,7 @@ def _get_env_api_key() -> str:
     return os.environ.get("AI_API_KEY") or _read_key_from_file()
 
 
-def get_ai_config(db_path: Path) -> dict[str, object] | None:
+def get_ai_config(db_path: Path) -> dict[str, object]:
     """Get AI config. Returns dict with has_key (bool) instead of actual key, plus source field."""
     base_url = os.environ.get("AI_BASE_URL")
     api_key = _get_env_api_key()
@@ -51,8 +51,16 @@ def get_ai_config(db_path: Path) -> dict[str, object] | None:
     conn.close()
 
     if row is None:
-        logger.debug("No AI config found in env or db")
-        return None
+        has_env_key = bool(api_key)
+        logger.debug("No AI config found in env or db (env_key=%s)", has_env_key)
+        return {
+            "base_url": "",
+            "model": "",
+            "provider_type": "",
+            "has_key": has_env_key,
+            "key_source": "env" if has_env_key else "none",
+            "source": "none",
+        }
 
     env_key = _get_env_api_key()
     db_has_key = bool(row["api_key"])

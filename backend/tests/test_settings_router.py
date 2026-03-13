@@ -14,6 +14,11 @@ def _use_test_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     db_path = tmp_path / "test.db"
     init_db(db_path)
     monkeypatch.setattr("app.routers.settings.DEFAULT_DB_PATH", db_path)
+    monkeypatch.delenv("AI_API_KEY", raising=False)
+    monkeypatch.delenv("AI_API_KEY_FILE", raising=False)
+    monkeypatch.delenv("AI_BASE_URL", raising=False)
+    monkeypatch.delenv("AI_MODEL", raising=False)
+    monkeypatch.delenv("AI_PROVIDER_TYPE", raising=False)
 
 
 @pytest.mark.anyio
@@ -123,6 +128,25 @@ async def test_test_connection_success(client: AsyncClient) -> None:
     mock_response.raise_for_status = MagicMock()
     with patch("httpx.post", return_value=mock_response):
         resp = await client.post("/api/settings/ai/test")
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok"}
+
+
+@pytest.mark.anyio
+async def test_test_connection_with_form_values(client: AsyncClient) -> None:
+    """Test connection with form values before saving."""
+    mock_response = MagicMock()
+    mock_response.raise_for_status = MagicMock()
+    with patch("httpx.post", return_value=mock_response):
+        resp = await client.post(
+            "/api/settings/ai/test",
+            json={
+                "base_url": "https://api.openai.com/v1",
+                "api_key": "sk-form-key",
+                "model": "gpt-4o",
+                "provider_type": "openai",
+            },
+        )
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok"}
 

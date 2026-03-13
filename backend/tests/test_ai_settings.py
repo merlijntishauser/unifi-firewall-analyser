@@ -78,14 +78,29 @@ class TestAiKeyFile:
         monkeypatch.setenv("AI_MODEL", "gpt-4o")
 
         result = get_ai_config(db_path)
-        # No env key, no file, no db -- should be None
-        assert result is None
+        # No env key, no file, no db -- should be source=none with no key
+        assert result["source"] == "none"
+        assert result["has_key"] is False
+        assert result["key_source"] == "none"
 
 
 class TestGetAiConfig:
-    def test_returns_none_when_no_config(self, db_path: Path) -> None:
+    def test_returns_source_none_when_no_config(self, db_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("AI_API_KEY", raising=False)
+        monkeypatch.delenv("AI_API_KEY_FILE", raising=False)
         result = get_ai_config(db_path)
-        assert result is None
+        assert result["source"] == "none"
+        assert result["has_key"] is False
+        assert result["key_source"] == "none"
+
+    def test_reports_env_key_when_no_full_config(self, db_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("AI_API_KEY", "sk-env-only")
+        monkeypatch.delenv("AI_BASE_URL", raising=False)
+        monkeypatch.delenv("AI_MODEL", raising=False)
+        result = get_ai_config(db_path)
+        assert result["source"] == "none"
+        assert result["has_key"] is True
+        assert result["key_source"] == "env"
 
     def test_returns_saved_config(self, db_path: Path) -> None:
         save_ai_config(db_path, "https://api.openai.com/v1", "sk-secret", "gpt-4o", "openai")
@@ -240,7 +255,7 @@ class TestDeleteAiConfig:
         save_ai_config(db_path, "https://api.openai.com/v1", "sk-secret", "gpt-4o", "openai")
         delete_ai_config(db_path)
         result = get_ai_config(db_path)
-        assert result is None
+        assert result["source"] == "none"
 
     def test_delete_when_no_config_does_not_raise(self, db_path: Path) -> None:
         delete_ai_config(db_path)  # Should not raise

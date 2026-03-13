@@ -53,16 +53,7 @@ class AiAnalysisSettingsInput(BaseModel):
 @router.get("/ai")
 async def get_config() -> dict[str, object]:
     config = get_ai_config(DEFAULT_DB_PATH)
-    logger.debug("Get AI config: source=%s", config.get("source") if config else "none")
-    if config is None:
-        return {
-            "source": "none",
-            "has_key": False,
-            "key_source": "none",
-            "base_url": "",
-            "model": "",
-            "provider_type": "",
-        }
+    logger.debug("Get AI config: source=%s", config.get("source"))
     return config
 
 
@@ -80,18 +71,35 @@ async def delete_config() -> dict[str, str]:
     return {"status": "ok"}
 
 
+class AiTestInput(BaseModel):
+    base_url: str
+    api_key: str = ""
+    model: str
+    provider_type: str
+
+
 @router.post("/ai/test")
-async def test_connection() -> dict[str, str]:
+async def test_connection(body: AiTestInput | None = None) -> dict[str, str]:
     import httpx
 
-    full_config = get_full_ai_config(DEFAULT_DB_PATH)
-    if full_config is None:
-        raise HTTPException(status_code=400, detail="No AI provider configured")
-
-    base_url = full_config["base_url"]
-    api_key = full_config["api_key"]
-    model = full_config["model"]
-    provider_type = full_config["provider_type"]
+    if body and body.base_url and body.model:
+        base_url = body.base_url
+        api_key = body.api_key
+        model = body.model
+        provider_type = body.provider_type
+        if not api_key:
+            full_config = get_full_ai_config(DEFAULT_DB_PATH)
+            api_key = full_config["api_key"] if full_config else ""
+        if not api_key:
+            raise HTTPException(status_code=400, detail="No API key provided")
+    else:
+        full_config = get_full_ai_config(DEFAULT_DB_PATH)
+        if full_config is None:
+            raise HTTPException(status_code=400, detail="No AI provider configured")
+        base_url = full_config["base_url"]
+        api_key = full_config["api_key"]
+        model = full_config["model"]
+        provider_type = full_config["provider_type"]
 
     logger.debug("Testing AI connection: provider=%s, model=%s", provider_type, model)
     try:

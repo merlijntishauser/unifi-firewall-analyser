@@ -70,8 +70,11 @@ export const api = {
       body: JSON.stringify(config),
     }),
   deleteAiConfig: () => fetchJson("/settings/ai", { method: "DELETE" }),
-  testAiConnection: () =>
-    fetchJson<{ status: string }>("/settings/ai/test", { method: "POST" }),
+  testAiConnection: (config?: AiConfigInput) =>
+    fetchJson<{ status: string }>("/settings/ai/test", {
+      method: "POST",
+      body: config ? JSON.stringify(config) : undefined,
+    }),
   getAiPresets: () => fetchJson<AiPreset[]>("/settings/ai/presets"),
   getAiAnalysisSettings: () =>
     fetchJson<AiAnalysisSettings>("/settings/ai-analysis"),
