@@ -107,7 +107,26 @@ Done looks like:
 
 - A release is validated against the production image through end-to-end tests, and persisted data can evolve safely across versions.
 
-### 4. Scale the frontend architecture and large-site UX
+### 4. Add Prometheus metrics endpoint
+
+Priority: P1
+
+Why this follows observability:
+
+- Structured logging (delivered in item 3) gives debug-level visibility, but operators running the app alongside Grafana/Prometheus need quantitative metrics.
+- Controller fetch latency, AI call duration, cache hit rates, and error counts are the key signals.
+
+What to ship:
+
+- Add a `/metrics` endpoint exposing Prometheus counters and histograms for controller fetches, AI calls, cache hit/miss, and request latency.
+- Keep it optional -- zero-config if not scraped, no external dependencies at runtime.
+
+Done looks like:
+
+- Operators can point a Prometheus scrape target at the app and get actionable dashboards without custom log parsing.
+
+### 5. Scale the frontend architecture and large-site UX
+
 
 Priority: P1
 
@@ -127,7 +146,7 @@ Done looks like:
 
 - Large rule sets remain responsive, and routine interactions do not require full remounts or full-data refreshes.
 
-### 5. Turn the app from analyzer into operator workflow
+### 6. Turn the app from analyzer into operator workflow
 
 Priority: P2
 
@@ -158,5 +177,6 @@ This ordering is deliberate:
 1. Trust the conclusions.
 2. Secure the trust boundary.
 3. Protect releases and upgrades end-to-end.
-4. Make the app hold up on larger, messier sites.
-5. Only then extend into change execution workflows.
+4. Add quantitative metrics for operators.
+5. Make the app hold up on larger, messier sites.
+6. Only then extend into change execution workflows.
