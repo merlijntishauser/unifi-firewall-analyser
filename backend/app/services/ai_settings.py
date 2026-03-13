@@ -98,19 +98,30 @@ def get_full_ai_config(db_path: Path) -> dict[str, str] | None:
 
 
 def save_ai_config(db_path: Path, base_url: str, api_key: str, model: str, provider_type: str) -> None:
-    """Save AI config (upsert)."""
+    """Save AI config (upsert). If api_key is empty, preserves the existing key."""
     logger.debug("Saving AI config: provider=%s, model=%s, base_url=%s", provider_type, model, base_url)
     conn = get_connection(db_path)
-    conn.execute(
-        """INSERT INTO ai_config (id, base_url, api_key, model, provider_type)
-           VALUES (1, ?, ?, ?, ?)
-           ON CONFLICT(id) DO UPDATE SET
-             base_url = excluded.base_url,
-             api_key = excluded.api_key,
-             model = excluded.model,
-             provider_type = excluded.provider_type""",
-        (base_url, api_key, model, provider_type),
-    )
+    if api_key:
+        conn.execute(
+            """INSERT INTO ai_config (id, base_url, api_key, model, provider_type)
+               VALUES (1, ?, ?, ?, ?)
+               ON CONFLICT(id) DO UPDATE SET
+                 base_url = excluded.base_url,
+                 api_key = excluded.api_key,
+                 model = excluded.model,
+                 provider_type = excluded.provider_type""",
+            (base_url, api_key, model, provider_type),
+        )
+    else:
+        conn.execute(
+            """INSERT INTO ai_config (id, base_url, api_key, model, provider_type)
+               VALUES (1, ?, '', ?, ?)
+               ON CONFLICT(id) DO UPDATE SET
+                 base_url = excluded.base_url,
+                 model = excluded.model,
+                 provider_type = excluded.provider_type""",
+            (base_url, model, provider_type),
+        )
     conn.commit()
     conn.close()
 

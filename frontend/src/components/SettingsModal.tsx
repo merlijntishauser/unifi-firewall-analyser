@@ -8,6 +8,8 @@ interface SettingsModalProps {
 
 type SiteProfile = "homelab" | "smb" | "enterprise";
 
+type ConfigSource = "db" | "env" | "none";
+
 interface SettingsState {
   presets: AiPreset[];
   selectedPresetId: string | null;
@@ -17,6 +19,8 @@ interface SettingsState {
   providerType: string;
   models: string[];
   siteProfile: SiteProfile;
+  configSource: ConfigSource;
+  hasKey: boolean;
   saving: boolean;
   testing: boolean;
   testResult: { ok: boolean; message: string } | null;
@@ -33,6 +37,8 @@ const initialSettingsState: SettingsState = {
   providerType: "openai",
   models: [],
   siteProfile: "homelab",
+  configSource: "none",
+  hasKey: false,
   saving: false,
   testing: false,
   testResult: null,
@@ -44,9 +50,110 @@ function settingsReducer(state: SettingsState, update: Partial<SettingsState>): 
   return { ...state, ...update };
 }
 
+const INPUT_CLASS =
+  "w-full rounded-lg border border-gray-300 dark:border-noc-border bg-white dark:bg-noc-input px-3 py-2 text-sm text-gray-900 dark:text-noc-text placeholder-gray-400 dark:placeholder-noc-text-dim focus:border-ub-blue focus:outline-none focus:ring-1 focus:ring-ub-blue/40 transition-colors";
+
+interface ProviderFieldsProps {
+  selectedPresetId: string | null;
+  presets: AiPreset[];
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  providerType: string;
+  models: string[];
+  hasKey: boolean;
+  isEnvSourced: boolean;
+  dispatch: (update: Partial<SettingsState>) => void;
+}
+
+function ProviderFields({ selectedPresetId, presets, baseUrl, apiKey, model, providerType, models, hasKey, isEnvSourced, dispatch }: ProviderFieldsProps) {
+  if (!selectedPresetId) return null;
+
+  return (
+    <>
+      {selectedPresetId === "custom" && (
+        <div>
+          <label htmlFor="settings-base-url" className="block text-sm font-medium text-gray-700 dark:text-noc-text-secondary mb-1">Base URL</label>
+          <input
+            id="settings-base-url"
+            type="text"
+            value={baseUrl}
+            onChange={e => dispatch({ baseUrl: e.target.value })}
+            disabled={isEnvSourced}
+            placeholder="https://api.example.com/v1"
+            className={INPUT_CLASS}
+          />
+        </div>
+      )}
+
+      <div>
+        <label htmlFor="settings-api-key" className="block text-sm font-medium text-gray-700 dark:text-noc-text-secondary mb-1">API Key</label>
+        {isEnvSourced ? (
+          <div className="flex items-center gap-2 rounded-lg border border-gray-300 dark:border-noc-border bg-gray-50 dark:bg-noc-input px-3 py-2 text-sm text-gray-500 dark:text-noc-text-dim">
+            <span>{presets.find(p => p.id === selectedPresetId)?.name ?? providerType} key configured via environment</span>
+          </div>
+        ) : (
+          <input
+            id="settings-api-key"
+            type="password"
+            value={apiKey}
+            onChange={e => dispatch({ apiKey: e.target.value })}
+            placeholder={hasKey ? "Key configured \u2014 leave blank to keep" : "Enter your API key"}
+            className={INPUT_CLASS}
+          />
+        )}
+      </div>
+
+      <div>
+        <label htmlFor="settings-model" className="block text-sm font-medium text-gray-700 dark:text-noc-text-secondary mb-1">Model</label>
+        {models.length > 0 ? (
+          <select
+            id="settings-model"
+            value={model}
+            onChange={e => dispatch({ model: e.target.value })}
+            disabled={isEnvSourced}
+            className={INPUT_CLASS}
+          >
+            {models.map(m => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
+        ) : (
+          <input
+            id="settings-model"
+            type="text"
+            value={model}
+            onChange={e => dispatch({ model: e.target.value })}
+            disabled={isEnvSourced}
+            placeholder="Model name"
+            className={INPUT_CLASS}
+          />
+        )}
+      </div>
+
+      {selectedPresetId === "custom" && (
+        <div>
+          <label htmlFor="settings-provider-type" className="block text-sm font-medium text-gray-700 dark:text-noc-text-secondary mb-1">Provider Type</label>
+          <select
+            id="settings-provider-type"
+            value={providerType}
+            onChange={e => dispatch({ providerType: e.target.value })}
+            disabled={isEnvSourced}
+            className={INPUT_CLASS}
+          >
+            <option value="openai">OpenAI Compatible</option>
+            <option value="anthropic">Anthropic</option>
+          </select>
+        </div>
+      )}
+    </>
+  );
+}
+
 export default function SettingsModal({ onClose }: SettingsModalProps) {
   const [state, dispatch] = useReducer(settingsReducer, initialSettingsState);
-  const { presets, selectedPresetId, baseUrl, apiKey, model, providerType, models, siteProfile, saving, testing, testResult, error, loading } = state;
+  const { presets, selectedPresetId, baseUrl, apiKey, model, providerType, models, siteProfile, configSource, hasKey, saving, testing, testResult, error, loading } = state;
+  const isEnvSourced = configSource === "env";
 
   // Load presets, current config, and analysis settings on mount
   useEffect(() => {
@@ -66,11 +173,13 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
             providerType: config.provider_type,
             selectedPresetId: matchedPreset ? matchedPreset.id : null,
             models: matchedPreset ? matchedPreset.models : [],
+            configSource: config.source,
+            hasKey: config.has_key,
             siteProfile: analysisSettings.site_profile,
             loading: false,
           });
         } else {
-          dispatch({ presets: presetsData, siteProfile: analysisSettings.site_profile, loading: false });
+          dispatch({ presets: presetsData, configSource: "none", hasKey: false, siteProfile: analysisSettings.site_profile, loading: false });
         }
       } catch {
         dispatch({ error: "Failed to load settings", loading: false });
@@ -93,15 +202,16 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   const handleSave = useCallback(async () => {
     dispatch({ saving: true, error: null });
     try {
-      await Promise.all([
-        api.saveAiConfig({ base_url: baseUrl, api_key: apiKey, model, provider_type: providerType }),
-        api.saveAiAnalysisSettings({ site_profile: siteProfile }),
-      ]);
+      const saves: Promise<unknown>[] = [api.saveAiAnalysisSettings({ site_profile: siteProfile })];
+      if (!isEnvSourced) {
+        saves.push(api.saveAiConfig({ base_url: baseUrl, api_key: apiKey, model, provider_type: providerType }));
+      }
+      await Promise.all(saves);
       onClose();
     } catch {
       dispatch({ error: "Failed to save settings", saving: false });
     }
-  }, [baseUrl, apiKey, model, providerType, siteProfile, onClose]);
+  }, [baseUrl, apiKey, model, providerType, siteProfile, isEnvSourced, onClose]);
 
   const handleTest = useCallback(async () => {
     dispatch({ testing: true, testResult: null });
@@ -122,9 +232,6 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
       dispatch({ error: "Failed to delete settings" });
     }
   }, [onClose]);
-
-  const inputClass =
-    "w-full rounded-lg border border-gray-300 dark:border-noc-border bg-white dark:bg-noc-input px-3 py-2 text-sm text-gray-900 dark:text-noc-text placeholder-gray-400 dark:placeholder-noc-text-dim focus:border-ub-blue focus:outline-none focus:ring-1 focus:ring-ub-blue/40 transition-colors";
 
   return (
     <div
@@ -153,14 +260,20 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
           <div className="text-sm text-gray-500 dark:text-noc-text-secondary">Loading...</div>
         ) : (
           <div className="space-y-4">
-            {/* Provider picker */}
+            {isEnvSourced && (
+              <div className="rounded-lg bg-blue-50 dark:bg-ub-blue-dim border border-blue-200 dark:border-ub-blue/20 p-3 text-sm text-blue-700 dark:text-ub-blue-light">
+                Configured via environment variables. Changes must be made in the deployment configuration.
+              </div>
+            )}
+
             <div>
               <label htmlFor="settings-provider" className="block text-sm font-medium text-gray-700 dark:text-noc-text-secondary mb-1">Provider</label>
               <select
                 id="settings-provider"
                 value={selectedPresetId ?? ""}
                 onChange={e => handlePresetChange(e.target.value)}
-                className={inputClass}
+                disabled={isEnvSourced}
+                className={INPUT_CLASS}
               >
                 <option value="">Select a provider...</option>
                 {presets.map(p => (
@@ -170,88 +283,26 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
               </select>
             </div>
 
-            {/* Base URL (shown for custom) */}
-            {selectedPresetId === "custom" && (
-              <div>
-                <label htmlFor="settings-base-url" className="block text-sm font-medium text-gray-700 dark:text-noc-text-secondary mb-1">Base URL</label>
-                <input
-                  id="settings-base-url"
-                  type="text"
-                  value={baseUrl}
-                  onChange={e => dispatch({ baseUrl: e.target.value })}
-                  placeholder="https://api.example.com/v1"
-                  className={inputClass}
-                />
-              </div>
-            )}
+            <ProviderFields
+              selectedPresetId={selectedPresetId}
+              presets={presets}
+              baseUrl={baseUrl}
+              apiKey={apiKey}
+              model={model}
+              providerType={providerType}
+              models={models}
+              hasKey={hasKey}
+              isEnvSourced={isEnvSourced}
+              dispatch={dispatch}
+            />
 
-            {/* API Key */}
-            {selectedPresetId && (
-              <>
-                <div>
-                  <label htmlFor="settings-api-key" className="block text-sm font-medium text-gray-700 dark:text-noc-text-secondary mb-1">API Key</label>
-                  <input
-                    id="settings-api-key"
-                    type="password"
-                    value={apiKey}
-                    onChange={e => dispatch({ apiKey: e.target.value })}
-                    placeholder="Enter your API key"
-                    className={inputClass}
-                  />
-                </div>
-
-                {/* Model selector */}
-                <div>
-                  <label htmlFor="settings-model" className="block text-sm font-medium text-gray-700 dark:text-noc-text-secondary mb-1">Model</label>
-                  {models.length > 0 ? (
-                    <select
-                      id="settings-model"
-                      value={model}
-                      onChange={e => dispatch({ model: e.target.value })}
-                      className={inputClass}
-                    >
-                      {models.map(m => (
-                        <option key={m} value={m}>{m}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      id="settings-model"
-                      type="text"
-                      value={model}
-                      onChange={e => dispatch({ model: e.target.value })}
-                      placeholder="Model name"
-                      className={inputClass}
-                    />
-                  )}
-                </div>
-
-                {/* Provider type (for custom only) */}
-                {selectedPresetId === "custom" && (
-                  <div>
-                    <label htmlFor="settings-provider-type" className="block text-sm font-medium text-gray-700 dark:text-noc-text-secondary mb-1">Provider Type</label>
-                    <select
-                      id="settings-provider-type"
-                      value={providerType}
-                      onChange={e => dispatch({ providerType: e.target.value })}
-                      className={inputClass}
-                    >
-                      <option value="openai">OpenAI Compatible</option>
-                      <option value="anthropic">Anthropic</option>
-                    </select>
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* Site profile */}
             <div>
               <label htmlFor="settings-site-profile" className="block text-sm font-medium text-gray-700 dark:text-noc-text-secondary mb-1">Site Profile</label>
               <select
                 id="settings-site-profile"
                 value={siteProfile}
                 onChange={e => dispatch({ siteProfile: e.target.value as SiteProfile })}
-                className={inputClass}
+                className={INPUT_CLASS}
               >
                 <option value="homelab">Homelab</option>
                 <option value="smb">Small / Medium Business</option>
@@ -262,7 +313,6 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
               </p>
             </div>
 
-            {/* Error/test messages */}
             {error && <div className="text-sm text-red-600 dark:text-status-danger">{error}</div>}
             {testResult && (
               <div className={`text-sm ${testResult.ok ? "text-green-600 dark:text-status-success" : "text-red-600 dark:text-status-danger"}`}>
@@ -270,17 +320,18 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
               </div>
             )}
 
-            {/* Actions */}
             <div className="flex gap-2 pt-2">
-              <button onClick={handleSave} disabled={saving || !selectedPresetId} className="flex-1 rounded-lg bg-ub-blue px-3 py-2 text-sm font-semibold text-white hover:bg-ub-blue-light disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-all">
+              <button onClick={handleSave} disabled={saving || (!isEnvSourced && !selectedPresetId)} className="flex-1 rounded-lg bg-ub-blue px-3 py-2 text-sm font-semibold text-white hover:bg-ub-blue-light disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-all">
                 {saving ? "Saving..." : "Save"}
               </button>
               <button onClick={handleTest} disabled={testing} className="rounded-lg border border-gray-300 dark:border-noc-border px-3 py-2 text-sm text-gray-700 dark:text-noc-text-secondary hover:bg-gray-100 dark:hover:bg-noc-raised hover:text-gray-900 dark:hover:text-noc-text disabled:opacity-50 cursor-pointer transition-all">
-                {testing ? "Testing..." : "Test"}
+                {testing ? "Testing..." : "Test Connection"}
               </button>
-              <button onClick={handleDelete} className="rounded-lg border border-red-300 dark:border-status-danger/30 px-3 py-2 text-sm text-red-600 dark:text-status-danger hover:bg-red-50 dark:hover:bg-status-danger-dim cursor-pointer transition-all">
-                Delete
-              </button>
+              {configSource === "db" && (
+                <button onClick={handleDelete} className="rounded-lg border border-red-300 dark:border-status-danger/30 px-3 py-2 text-sm text-red-600 dark:text-status-danger hover:bg-red-50 dark:hover:bg-status-danger-dim cursor-pointer transition-all">
+                  Delete
+                </button>
+              )}
             </div>
           </div>
         )}

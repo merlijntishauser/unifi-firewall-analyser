@@ -178,6 +178,22 @@ class TestSaveAiConfig:
         assert result["model"] == "claude-sonnet-4-6"
         assert result["provider_type"] == "anthropic"
 
+    def test_empty_key_preserves_existing(self, db_path: Path) -> None:
+        save_ai_config(db_path, "https://api.openai.com/v1", "sk-original", "gpt-4o", "openai")
+        save_ai_config(db_path, "https://api.openai.com/v1", "", "gpt-4o-mini", "openai")
+
+        result = get_full_ai_config(db_path)
+        assert result is not None
+        assert result["api_key"] == "sk-original"
+        assert result["model"] == "gpt-4o-mini"
+
+    def test_empty_key_on_new_config_stores_empty(self, db_path: Path) -> None:
+        save_ai_config(db_path, "https://api.openai.com/v1", "", "gpt-4o", "openai")
+
+        result = get_full_ai_config(db_path)
+        assert result is not None
+        assert result["api_key"] == ""
+
 
 class TestDeleteAiConfig:
     def test_removes_config(self, db_path: Path) -> None:
