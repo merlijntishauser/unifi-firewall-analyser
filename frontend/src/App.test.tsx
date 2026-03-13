@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
+import { screen, waitFor, fireEvent, act } from "@testing-library/react";
 import App from "./App";
 import type { Zone, ZonePair } from "./api/types";
+import { renderWithQuery } from "./test-utils";
 
 // Mock the api client
 vi.mock("./api/client", () => ({
@@ -158,6 +159,15 @@ const testZonePairs: ZonePair[] = [
   },
 ];
 
+function authedDefaults() {
+  mockGetAuthStatus.mockResolvedValue({
+    configured: true,
+    source: "env",
+    url: "https://unifi.local",
+    username: "admin",
+  });
+}
+
 describe("App", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -177,7 +187,7 @@ describe("App", () => {
 
   it("shows loading spinner with status while authenticating", () => {
     mockGetAuthStatus.mockReturnValue(new Promise(() => {}));
-    render(<App />);
+    renderWithQuery(<App />);
     expect(screen.getByText("Checking authentication...")).toBeInTheDocument();
   });
 
@@ -186,8 +196,9 @@ describe("App", () => {
       configured: false,
       source: "none",
       url: "",
+      username: "",
     });
-    render(<App />);
+    renderWithQuery(<App />);
 
     await waitFor(() => {
       expect(screen.getByText("Connect to UniFi Controller")).toBeInTheDocument();
@@ -196,7 +207,7 @@ describe("App", () => {
 
   it("shows login screen when auth status check fails", async () => {
     mockGetAuthStatus.mockRejectedValue(new Error("Network error"));
-    render(<App />);
+    renderWithQuery(<App />);
 
     await waitFor(() => {
       expect(screen.getByText("Connect to UniFi Controller")).toBeInTheDocument();
@@ -204,15 +215,11 @@ describe("App", () => {
   });
 
   it("shows main UI when authenticated", async () => {
-    mockGetAuthStatus.mockResolvedValue({
-      configured: true,
-      source: "env",
-      url: "https://unifi.local",
-    });
+    authedDefaults();
     mockGetZones.mockResolvedValue([]);
     mockGetZonePairs.mockResolvedValue([]);
 
-    render(<App />);
+    renderWithQuery(<App />);
 
     await waitFor(() => {
       expect(screen.getByText("UniFi Firewall Analyser")).toBeInTheDocument();
@@ -220,16 +227,14 @@ describe("App", () => {
   });
 
   it("transitions from login to main UI after successful login", async () => {
-    mockGetAuthStatus.mockResolvedValue({
-      configured: false,
-      source: "none",
-      url: "",
-    });
+    mockGetAuthStatus
+      .mockResolvedValueOnce({ configured: false, source: "none", url: "", username: "" })
+      .mockResolvedValue({ configured: true, source: "runtime", url: "https://192.168.1.1", username: "admin" });
     mockLogin.mockResolvedValue(undefined);
     mockGetZones.mockResolvedValue([]);
     mockGetZonePairs.mockResolvedValue([]);
 
-    render(<App />);
+    renderWithQuery(<App />);
 
     await waitFor(() => {
       expect(screen.getByText("Connect to UniFi Controller")).toBeInTheDocument();
@@ -255,20 +260,19 @@ describe("App", () => {
   });
 
   it("logs out and shows login screen", async () => {
-    mockGetAuthStatus.mockResolvedValue({
-      configured: true,
-      source: "env",
-      url: "https://unifi.local",
-    });
+    authedDefaults();
     mockGetZones.mockResolvedValue([]);
     mockGetZonePairs.mockResolvedValue([]);
     mockLogout.mockResolvedValue(undefined);
 
-    render(<App />);
+    renderWithQuery(<App />);
 
     await waitFor(() => {
       expect(screen.getByText("UniFi Firewall Analyser")).toBeInTheDocument();
     });
+
+    // After logout, auth status should return not configured
+    mockGetAuthStatus.mockResolvedValue({ configured: false, source: "none", url: "", username: "" });
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
@@ -280,15 +284,11 @@ describe("App", () => {
   });
 
   it("shows error when data fetch fails", async () => {
-    mockGetAuthStatus.mockResolvedValue({
-      configured: true,
-      source: "env",
-      url: "https://unifi.local",
-    });
+    authedDefaults();
     mockGetZones.mockRejectedValue(new Error("Fetch failed"));
     mockGetZonePairs.mockResolvedValue([]);
 
-    render(<App />);
+    renderWithQuery(<App />);
 
     await waitFor(() => {
       expect(screen.getByText("Fetch failed")).toBeInTheDocument();
@@ -296,15 +296,11 @@ describe("App", () => {
   });
 
   it("toggles color mode", async () => {
-    mockGetAuthStatus.mockResolvedValue({
-      configured: true,
-      source: "env",
-      url: "https://unifi.local",
-    });
+    authedDefaults();
     mockGetZones.mockResolvedValue([]);
     mockGetZonePairs.mockResolvedValue([]);
 
-    render(<App />);
+    renderWithQuery(<App />);
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Light" })).toBeInTheDocument();
@@ -318,15 +314,11 @@ describe("App", () => {
 
   it("restores color mode from localStorage", async () => {
     localStorage.setItem("colorMode", "light");
-    mockGetAuthStatus.mockResolvedValue({
-      configured: true,
-      source: "env",
-      url: "https://unifi.local",
-    });
+    authedDefaults();
     mockGetZones.mockResolvedValue([]);
     mockGetZonePairs.mockResolvedValue([]);
 
-    render(<App />);
+    renderWithQuery(<App />);
 
     await waitFor(() => {
       // Light mode shows "Dark" button to switch back
@@ -335,11 +327,7 @@ describe("App", () => {
   });
 
   it("shows contextual toggle for disabled rules and toggles it", async () => {
-    mockGetAuthStatus.mockResolvedValue({
-      configured: true,
-      source: "env",
-      url: "https://unifi.local",
-    });
+    authedDefaults();
     mockGetZones.mockResolvedValue(testZones);
     mockGetZonePairs.mockResolvedValue([
       {
@@ -381,7 +369,7 @@ describe("App", () => {
       },
     ]);
 
-    render(<App />);
+    renderWithQuery(<App />);
 
     await waitFor(() => {
       expect(screen.getByLabelText("Show disabled rules")).toBeInTheDocument();
@@ -394,15 +382,11 @@ describe("App", () => {
   });
 
   it("does not show toggle when no disabled rules and no hidden zones", async () => {
-    mockGetAuthStatus.mockResolvedValue({
-      configured: true,
-      source: "env",
-      url: "https://unifi.local",
-    });
+    authedDefaults();
     mockGetZones.mockResolvedValue(testZones);
     mockGetZonePairs.mockResolvedValue(testZonePairs);
 
-    render(<App />);
+    renderWithQuery(<App />);
 
     await waitFor(() => {
       expect(screen.getByText("UniFi Firewall Analyser")).toBeInTheDocument();
@@ -415,15 +399,11 @@ describe("App", () => {
   });
 
   it("shows 'Show filtered zones' when zones are hidden", async () => {
-    mockGetAuthStatus.mockResolvedValue({
-      configured: true,
-      source: "env",
-      url: "https://unifi.local",
-    });
+    authedDefaults();
     mockGetZones.mockResolvedValue(testZones);
     mockGetZonePairs.mockResolvedValue(testZonePairs);
 
-    render(<App />);
+    renderWithQuery(<App />);
 
     // Wait for zones to load and render in sidebar
     await waitFor(() => {
@@ -438,15 +418,11 @@ describe("App", () => {
 
   it("loads hidden zones from API on auth", async () => {
     mockGetZoneFilter.mockResolvedValue({ hidden_zone_ids: ["z1"] });
-    mockGetAuthStatus.mockResolvedValue({
-      configured: true,
-      source: "env",
-      url: "https://unifi.local",
-    });
+    authedDefaults();
     mockGetZones.mockResolvedValue(testZones);
     mockGetZonePairs.mockResolvedValue(testZonePairs);
 
-    render(<App />);
+    renderWithQuery(<App />);
 
     await waitFor(() => {
       expect(mockGetZoneFilter).toHaveBeenCalled();
@@ -460,40 +436,34 @@ describe("App", () => {
   });
 
   it("calls refresh when Refresh button is clicked", async () => {
-    mockGetAuthStatus.mockResolvedValue({
-      configured: true,
-      source: "env",
-      url: "https://unifi.local",
-    });
+    authedDefaults();
     mockGetZones.mockResolvedValue([]);
     mockGetZonePairs.mockResolvedValue([]);
 
-    render(<App />);
+    renderWithQuery(<App />);
 
+    // Wait for initial data load to complete (button shows "Refresh" not "Refreshing...")
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Refresh" })).toBeInTheDocument();
     });
 
-    mockGetZones.mockResolvedValue([]);
-    mockGetZonePairs.mockResolvedValue([]);
+    // Clear call counts from initial load
+    mockGetZones.mockClear();
+    mockGetZonePairs.mockClear();
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+
+    await waitFor(() => {
+      expect(mockGetZones).toHaveBeenCalled();
     });
-
-    expect(mockGetZones).toHaveBeenCalledTimes(2);
   });
 
   it("shows RulePanel when an edge is clicked and closes it", async () => {
-    mockGetAuthStatus.mockResolvedValue({
-      configured: true,
-      source: "env",
-      url: "https://unifi.local",
-    });
+    authedDefaults();
     mockGetZones.mockResolvedValue(testZones);
     mockGetZonePairs.mockResolvedValue(testZonePairs);
 
-    render(<App />);
+    renderWithQuery(<App />);
 
     // First navigate to graph view by clicking a zone in the matrix
     await waitFor(() => {
@@ -528,15 +498,11 @@ describe("App", () => {
   });
 
   it("shows RulePanel via edge label click (onLabelClick)", async () => {
-    mockGetAuthStatus.mockResolvedValue({
-      configured: true,
-      source: "env",
-      url: "https://unifi.local",
-    });
+    authedDefaults();
     mockGetZones.mockResolvedValue(testZones);
     mockGetZonePairs.mockResolvedValue(testZonePairs);
 
-    render(<App />);
+    renderWithQuery(<App />);
 
     // First navigate to graph view by clicking a zone in the matrix
     await waitFor(() => {
@@ -559,11 +525,7 @@ describe("App", () => {
   });
 
   it("shows 'Unknown' for zone names when zone is not found", async () => {
-    mockGetAuthStatus.mockResolvedValue({
-      configured: true,
-      source: "env",
-      url: "https://unifi.local",
-    });
+    authedDefaults();
     // Return zones but with IDs that don't match the zone pair
     mockGetZones.mockResolvedValue([
       { id: "z999", name: "Other", networks: [] },
@@ -594,7 +556,7 @@ describe("App", () => {
       },
     ]);
 
-    render(<App />);
+    renderWithQuery(<App />);
 
     // Click the matrix cell to open the RulePanel directly
     await waitFor(() => {
@@ -611,11 +573,11 @@ describe("App", () => {
   });
 
   it("shows ZoneMatrix by default (no focusZone)", async () => {
-    mockGetAuthStatus.mockResolvedValue({ configured: true, source: "env", url: "https://unifi.local", username: "admin" });
+    authedDefaults();
     mockGetZones.mockResolvedValue(testZones);
     mockGetZonePairs.mockResolvedValue(testZonePairs);
 
-    render(<App />);
+    renderWithQuery(<App />);
 
     await waitFor(() => {
       expect(screen.getByTestId("zone-matrix")).toBeInTheDocument();
@@ -624,11 +586,11 @@ describe("App", () => {
   });
 
   it("navigates to graph view when zone header is clicked in matrix", async () => {
-    mockGetAuthStatus.mockResolvedValue({ configured: true, source: "env", url: "https://unifi.local", username: "admin" });
+    authedDefaults();
     mockGetZones.mockResolvedValue(testZones);
     mockGetZonePairs.mockResolvedValue(testZonePairs);
 
-    render(<App />);
+    renderWithQuery(<App />);
 
     await waitFor(() => {
       expect(screen.getByTestId("matrix-zone-z1")).toBeInTheDocument();
@@ -644,11 +606,11 @@ describe("App", () => {
   });
 
   it("returns to matrix view when back button is clicked", async () => {
-    mockGetAuthStatus.mockResolvedValue({ configured: true, source: "env", url: "https://unifi.local", username: "admin" });
+    authedDefaults();
     mockGetZones.mockResolvedValue(testZones);
     mockGetZonePairs.mockResolvedValue(testZonePairs);
 
-    render(<App />);
+    renderWithQuery(<App />);
 
     await waitFor(() => {
       expect(screen.getByTestId("matrix-zone-z1")).toBeInTheDocument();
@@ -668,11 +630,11 @@ describe("App", () => {
   });
 
   it("opens RulePanel and graph view when matrix cell is clicked", async () => {
-    mockGetAuthStatus.mockResolvedValue({ configured: true, source: "env", url: "https://unifi.local", username: "admin" });
+    authedDefaults();
     mockGetZones.mockResolvedValue(testZones);
     mockGetZonePairs.mockResolvedValue(testZonePairs);
 
-    render(<App />);
+    renderWithQuery(<App />);
 
     await waitFor(() => {
       expect(screen.getByTestId("matrix-cell-z1-z2")).toBeInTheDocument();
@@ -688,11 +650,11 @@ describe("App", () => {
   });
 
   it("opens and closes settings modal", async () => {
-    mockGetAuthStatus.mockResolvedValue({ configured: true, source: "env", url: "https://unifi.local", username: "admin" });
+    authedDefaults();
     mockGetZones.mockResolvedValue([]);
     mockGetZonePairs.mockResolvedValue([]);
 
-    render(<App />);
+    renderWithQuery(<App />);
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Settings" })).toBeInTheDocument();
@@ -712,11 +674,11 @@ describe("App", () => {
   });
 
   it("refreshes AI config when settings modal closes", async () => {
-    mockGetAuthStatus.mockResolvedValue({ configured: true, source: "env", url: "https://unifi.local", username: "admin" });
+    authedDefaults();
     mockGetZones.mockResolvedValue([]);
     mockGetZonePairs.mockResolvedValue([]);
 
-    render(<App />);
+    renderWithQuery(<App />);
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Settings" })).toBeInTheDocument();
@@ -739,29 +701,19 @@ describe("App", () => {
   });
 
   it("calls getAiConfig when authenticated", async () => {
-    mockGetAuthStatus.mockResolvedValue({
-      configured: true,
-      source: "env",
-      url: "https://unifi.local",
-    });
+    authedDefaults();
     mockGetZones.mockResolvedValue([]);
     mockGetZonePairs.mockResolvedValue([]);
 
-    render(<App />);
+    renderWithQuery(<App />);
 
     await waitFor(() => {
-      expect(screen.getByText("UniFi Firewall Analyser")).toBeInTheDocument();
+      expect(mockGetAiConfig).toHaveBeenCalled();
     });
-
-    expect(mockGetAiConfig).toHaveBeenCalled();
   });
 
   it("shows Analyze with AI button when AI is configured", async () => {
-    mockGetAuthStatus.mockResolvedValue({
-      configured: true,
-      source: "env",
-      url: "https://unifi.local",
-    });
+    authedDefaults();
     mockGetAiConfig.mockResolvedValue({
       base_url: "",
       model: "",
@@ -773,7 +725,7 @@ describe("App", () => {
     mockGetZones.mockResolvedValue(testZones);
     mockGetZonePairs.mockResolvedValue(testZonePairs);
 
-    render(<App />);
+    renderWithQuery(<App />);
 
     await waitFor(() => {
       expect(screen.getByTestId("matrix-cell-z1-z2")).toBeInTheDocument();
@@ -789,11 +741,11 @@ describe("App", () => {
   });
 
   it("renders MatrixSidebar in matrix view", async () => {
-    mockGetAuthStatus.mockResolvedValue({ configured: true, source: "env", url: "", username: "admin" });
+    authedDefaults();
     mockGetZones.mockResolvedValue(testZones);
     mockGetZonePairs.mockResolvedValue([]);
 
-    render(<App />);
+    renderWithQuery(<App />);
 
     await waitFor(() => {
       expect(screen.getByText("Zones")).toBeInTheDocument();
@@ -803,11 +755,11 @@ describe("App", () => {
   });
 
   it("hides zone from matrix when unchecked in sidebar", async () => {
-    mockGetAuthStatus.mockResolvedValue({ configured: true, source: "env", url: "", username: "admin" });
+    authedDefaults();
     mockGetZones.mockResolvedValue(testZones);
     mockGetZonePairs.mockResolvedValue([]);
 
-    render(<App />);
+    renderWithQuery(<App />);
 
     await waitFor(() => {
       expect(screen.getByTestId("matrix-zone-z1")).toBeInTheDocument();
@@ -828,16 +780,12 @@ describe("App", () => {
   });
 
   it("does not show Analyze with AI button when AI config fails", async () => {
-    mockGetAuthStatus.mockResolvedValue({
-      configured: true,
-      source: "env",
-      url: "https://unifi.local",
-    });
+    authedDefaults();
     mockGetAiConfig.mockRejectedValue(new Error("AI config fetch failed"));
     mockGetZones.mockResolvedValue(testZones);
     mockGetZonePairs.mockResolvedValue(testZonePairs);
 
-    render(<App />);
+    renderWithQuery(<App />);
 
     await waitFor(() => {
       expect(screen.getByTestId("matrix-cell-z1-z2")).toBeInTheDocument();

@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { screen, fireEvent, waitFor, within } from "@testing-library/react";
 import RulePanel from "./RulePanel";
 import type { ZonePair, Rule, SimulateResponse, ZonePairAnalysis } from "../api/types";
+import { renderWithQuery } from "../test-utils";
 
 let capturedOnConfirm: (() => void) | null = null;
 
@@ -100,7 +101,7 @@ describe("RulePanel", () => {
   });
 
   function renderPanel(pair?: ZonePair, sourceZoneName = "External", destZoneName = "Internal", aiConfigured = false, onRuleUpdated = vi.fn()) {
-    return render(
+    return renderWithQuery(
       <RulePanel
         pair={pair ?? makePair()}
         sourceZoneName={sourceZoneName}

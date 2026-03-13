@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
+import { screen, waitFor, fireEvent, act } from "@testing-library/react";
 import SettingsModal from "./SettingsModal";
 import type { AiConfig, AiPreset } from "../api/types";
+import { renderWithQuery } from "../test-utils";
 
 vi.mock("../api/client", () => ({
   api: {
@@ -74,7 +75,7 @@ describe("SettingsModal", () => {
     mockGetAiConfig.mockReturnValue(new Promise(() => {}));
     mockGetAiAnalysisSettings.mockReturnValue(new Promise(() => {}));
 
-    render(<SettingsModal onClose={vi.fn()} />);
+    renderWithQuery(<SettingsModal onClose={vi.fn()} />);
 
     expect(screen.getByText("AI Provider Settings")).toBeInTheDocument();
   });
@@ -84,7 +85,7 @@ describe("SettingsModal", () => {
     mockGetAiConfig.mockReturnValue(new Promise(() => {}));
     mockGetAiAnalysisSettings.mockReturnValue(new Promise(() => {}));
 
-    render(<SettingsModal onClose={vi.fn()} />);
+    renderWithQuery(<SettingsModal onClose={vi.fn()} />);
 
     expect(screen.getByText("Loading...")).toBeInTheDocument();
   });
@@ -93,7 +94,7 @@ describe("SettingsModal", () => {
     mockGetAiPresets.mockResolvedValue(testPresets);
     mockGetAiConfig.mockResolvedValue(noConfig);
 
-    render(<SettingsModal onClose={vi.fn()} />);
+    renderWithQuery(<SettingsModal onClose={vi.fn()} />);
 
     await waitFor(() => {
       expect(screen.getByLabelText("Provider")).toBeInTheDocument();
@@ -106,7 +107,7 @@ describe("SettingsModal", () => {
     mockGetAiPresets.mockResolvedValue(testPresets);
     mockGetAiConfig.mockResolvedValue(noConfig);
 
-    render(<SettingsModal onClose={vi.fn()} />);
+    renderWithQuery(<SettingsModal onClose={vi.fn()} />);
 
     await waitFor(() => {
       expect(screen.getByLabelText("Provider")).toBeInTheDocument();
@@ -129,7 +130,7 @@ describe("SettingsModal", () => {
     mockSaveAiConfig.mockResolvedValue({ status: "ok" });
     const onClose = vi.fn();
 
-    render(<SettingsModal onClose={onClose} />);
+    renderWithQuery(<SettingsModal onClose={onClose} />);
 
     await waitFor(() => {
       expect(screen.getByLabelText("Provider")).toBeInTheDocument();
@@ -166,7 +167,7 @@ describe("SettingsModal", () => {
     mockGetAiConfig.mockResolvedValue(noConfig);
     mockTestAiConnection.mockResolvedValue({ status: "ok" });
 
-    render(<SettingsModal onClose={vi.fn()} />);
+    renderWithQuery(<SettingsModal onClose={vi.fn()} />);
 
     await waitFor(() => {
       expect(screen.getByLabelText("Provider")).toBeInTheDocument();
@@ -188,7 +189,7 @@ describe("SettingsModal", () => {
     mockDeleteAiConfig.mockResolvedValue({ status: "ok" });
     const onClose = vi.fn();
 
-    render(<SettingsModal onClose={onClose} />);
+    renderWithQuery(<SettingsModal onClose={onClose} />);
 
     await waitFor(() => {
       expect(screen.getByLabelText("Provider")).toBeInTheDocument();
@@ -207,7 +208,7 @@ describe("SettingsModal", () => {
     mockGetAiConfig.mockResolvedValue(noConfig);
     const onClose = vi.fn();
 
-    render(<SettingsModal onClose={onClose} />);
+    renderWithQuery(<SettingsModal onClose={onClose} />);
 
     await waitFor(() => {
       expect(screen.getByLabelText("Provider")).toBeInTheDocument();
@@ -223,7 +224,7 @@ describe("SettingsModal", () => {
     mockGetAiConfig.mockResolvedValue(noConfig);
     const onClose = vi.fn();
 
-    render(<SettingsModal onClose={onClose} />);
+    renderWithQuery(<SettingsModal onClose={onClose} />);
 
     await waitFor(() => {
       expect(screen.getByLabelText("Provider")).toBeInTheDocument();
@@ -237,7 +238,7 @@ describe("SettingsModal", () => {
     mockGetAiPresets.mockRejectedValue(new Error("Network error"));
     mockGetAiConfig.mockRejectedValue(new Error("Network error"));
 
-    render(<SettingsModal onClose={vi.fn()} />);
+    renderWithQuery(<SettingsModal onClose={vi.fn()} />);
 
     await waitFor(() => {
       expect(screen.getByText("Failed to load settings")).toBeInTheDocument();
@@ -250,7 +251,7 @@ describe("SettingsModal", () => {
     mockSaveAiConfig.mockRejectedValue(new Error("Save failed"));
     const onClose = vi.fn();
 
-    render(<SettingsModal onClose={onClose} />);
+    renderWithQuery(<SettingsModal onClose={onClose} />);
 
     await waitFor(() => {
       expect(screen.getByLabelText("Provider")).toBeInTheDocument();
@@ -275,7 +276,7 @@ describe("SettingsModal", () => {
     mockGetAiConfig.mockResolvedValue(noConfig);
     mockTestAiConnection.mockRejectedValue(new Error("Connection error"));
 
-    render(<SettingsModal onClose={vi.fn()} />);
+    renderWithQuery(<SettingsModal onClose={vi.fn()} />);
 
     await waitFor(() => {
       expect(screen.getByLabelText("Provider")).toBeInTheDocument();
@@ -296,7 +297,7 @@ describe("SettingsModal", () => {
     mockDeleteAiConfig.mockRejectedValue(new Error("Delete failed"));
     const onClose = vi.fn();
 
-    render(<SettingsModal onClose={onClose} />);
+    renderWithQuery(<SettingsModal onClose={onClose} />);
 
     await waitFor(() => {
       expect(screen.getByLabelText("Provider")).toBeInTheDocument();
@@ -314,7 +315,7 @@ describe("SettingsModal", () => {
     mockGetAiPresets.mockResolvedValue(testPresets);
     mockGetAiConfig.mockResolvedValue(noConfig);
 
-    render(<SettingsModal onClose={vi.fn()} />);
+    renderWithQuery(<SettingsModal onClose={vi.fn()} />);
 
     await waitFor(() => {
       expect(screen.getByLabelText("Provider")).toBeInTheDocument();
@@ -339,7 +340,7 @@ describe("SettingsModal", () => {
     mockSaveAiConfig.mockResolvedValue({ status: "ok" });
     const onClose = vi.fn();
 
-    render(<SettingsModal onClose={onClose} />);
+    renderWithQuery(<SettingsModal onClose={onClose} />);
 
     await waitFor(() => {
       expect(screen.getByLabelText("Provider")).toBeInTheDocument();
@@ -389,7 +390,7 @@ describe("SettingsModal", () => {
     mockSaveAiConfig.mockResolvedValue({ status: "ok" });
     const onClose = vi.fn();
 
-    render(<SettingsModal onClose={onClose} />);
+    renderWithQuery(<SettingsModal onClose={onClose} />);
 
     await waitFor(() => {
       expect(screen.getByLabelText("Provider")).toBeInTheDocument();
@@ -426,7 +427,7 @@ describe("SettingsModal", () => {
     mockGetAiPresets.mockResolvedValue(testPresets);
     mockGetAiConfig.mockResolvedValue(noConfig);
 
-    render(<SettingsModal onClose={vi.fn()} />);
+    renderWithQuery(<SettingsModal onClose={vi.fn()} />);
 
     await waitFor(() => {
       expect(screen.getByLabelText("Provider")).toBeInTheDocument();
@@ -440,7 +441,7 @@ describe("SettingsModal", () => {
     mockGetAiConfig.mockResolvedValue(noConfig);
     const onClose = vi.fn();
 
-    render(<SettingsModal onClose={onClose} />);
+    renderWithQuery(<SettingsModal onClose={onClose} />);
 
     await waitFor(() => {
       expect(screen.getByLabelText("Provider")).toBeInTheDocument();
@@ -455,7 +456,7 @@ describe("SettingsModal", () => {
     mockGetAiConfig.mockResolvedValue(noConfig);
     const onClose = vi.fn();
 
-    render(<SettingsModal onClose={onClose} />);
+    renderWithQuery(<SettingsModal onClose={onClose} />);
 
     await waitFor(() => {
       expect(screen.getByLabelText("Provider")).toBeInTheDocument();
@@ -470,7 +471,7 @@ describe("SettingsModal", () => {
     mockGetAiConfig.mockResolvedValue(noConfig);
     const onClose = vi.fn();
 
-    render(<SettingsModal onClose={onClose} />);
+    renderWithQuery(<SettingsModal onClose={onClose} />);
 
     await waitFor(() => {
       expect(screen.getByLabelText("Provider")).toBeInTheDocument();
@@ -485,7 +486,7 @@ describe("SettingsModal", () => {
     mockGetAiPresets.mockResolvedValue(testPresets);
     mockGetAiConfig.mockResolvedValue(existingConfig);
 
-    render(<SettingsModal onClose={vi.fn()} />);
+    renderWithQuery(<SettingsModal onClose={vi.fn()} />);
 
     await waitFor(() => {
       expect(screen.getByLabelText("Provider")).toBeInTheDocument();
@@ -511,7 +512,7 @@ describe("SettingsModal", () => {
       source: "db",
     });
 
-    render(<SettingsModal onClose={vi.fn()} />);
+    renderWithQuery(<SettingsModal onClose={vi.fn()} />);
 
     await waitFor(() => {
       expect(screen.getByLabelText("Provider")).toBeInTheDocument();
@@ -529,7 +530,7 @@ describe("SettingsModal", () => {
     mockGetAiPresets.mockResolvedValue(testPresets);
     mockGetAiConfig.mockResolvedValue(noConfig);
 
-    render(<SettingsModal onClose={vi.fn()} />);
+    renderWithQuery(<SettingsModal onClose={vi.fn()} />);
 
     await waitFor(() => {
       expect(screen.getByLabelText("Provider")).toBeInTheDocument();
@@ -562,7 +563,7 @@ describe("SettingsModal", () => {
     mockGetAiConfig.mockResolvedValue(noConfig);
     mockGetAiAnalysisSettings.mockResolvedValue({ site_profile: "smb" });
 
-    render(<SettingsModal onClose={vi.fn()} />);
+    renderWithQuery(<SettingsModal onClose={vi.fn()} />);
 
     await waitFor(() => {
       expect(screen.getByLabelText("Site Profile")).toBeInTheDocument();
@@ -578,7 +579,7 @@ describe("SettingsModal", () => {
     mockSaveAiConfig.mockResolvedValue({ status: "ok" });
     const onClose = vi.fn();
 
-    render(<SettingsModal onClose={onClose} />);
+    renderWithQuery(<SettingsModal onClose={onClose} />);
 
     await waitFor(() => {
       expect(screen.getByLabelText("Provider")).toBeInTheDocument();
@@ -609,7 +610,7 @@ describe("SettingsModal", () => {
     mockGetAiPresets.mockResolvedValue(testPresets);
     mockGetAiConfig.mockResolvedValue(existingConfig);
 
-    render(<SettingsModal onClose={vi.fn()} />);
+    renderWithQuery(<SettingsModal onClose={vi.fn()} />);
 
     await waitFor(() => {
       expect(screen.getByLabelText("Provider")).toBeInTheDocument();
@@ -628,7 +629,7 @@ describe("SettingsModal", () => {
       source: "db",
     });
 
-    render(<SettingsModal onClose={vi.fn()} />);
+    renderWithQuery(<SettingsModal onClose={vi.fn()} />);
 
     await waitFor(() => {
       expect(screen.getByLabelText("Provider")).toBeInTheDocument();
@@ -643,7 +644,7 @@ describe("SettingsModal", () => {
     mockGetAiConfig.mockResolvedValue(noConfig);
     mockTestAiConnection.mockRejectedValue("string error");
 
-    render(<SettingsModal onClose={vi.fn()} />);
+    renderWithQuery(<SettingsModal onClose={vi.fn()} />);
 
     await waitFor(() => {
       expect(screen.getByLabelText("Provider")).toBeInTheDocument();
@@ -672,7 +673,7 @@ describe("SettingsModal", () => {
       mockGetAiPresets.mockResolvedValue(testPresets);
       mockGetAiConfig.mockResolvedValue(envConfig);
 
-      render(<SettingsModal onClose={vi.fn()} />);
+      renderWithQuery(<SettingsModal onClose={vi.fn()} />);
 
       await waitFor(() => {
         expect(screen.getByText(/Configured via environment variables/)).toBeInTheDocument();
@@ -683,7 +684,7 @@ describe("SettingsModal", () => {
       mockGetAiPresets.mockResolvedValue(testPresets);
       mockGetAiConfig.mockResolvedValue(envConfig);
 
-      render(<SettingsModal onClose={vi.fn()} />);
+      renderWithQuery(<SettingsModal onClose={vi.fn()} />);
 
       await waitFor(() => {
         expect(screen.getByLabelText("Provider")).toBeInTheDocument();
@@ -696,7 +697,7 @@ describe("SettingsModal", () => {
       mockGetAiPresets.mockResolvedValue(testPresets);
       mockGetAiConfig.mockResolvedValue(envConfig);
 
-      render(<SettingsModal onClose={vi.fn()} />);
+      renderWithQuery(<SettingsModal onClose={vi.fn()} />);
 
       await waitFor(() => {
         expect(screen.getByText("OpenAI key configured via environment")).toBeInTheDocument();
@@ -710,7 +711,7 @@ describe("SettingsModal", () => {
       mockGetAiPresets.mockResolvedValue(testPresets);
       mockGetAiConfig.mockResolvedValue(envConfig);
 
-      render(<SettingsModal onClose={vi.fn()} />);
+      renderWithQuery(<SettingsModal onClose={vi.fn()} />);
 
       await waitFor(() => {
         expect(screen.getByLabelText("Model")).toBeInTheDocument();
@@ -723,7 +724,7 @@ describe("SettingsModal", () => {
       mockGetAiPresets.mockResolvedValue(testPresets);
       mockGetAiConfig.mockResolvedValue(envConfig);
 
-      render(<SettingsModal onClose={vi.fn()} />);
+      renderWithQuery(<SettingsModal onClose={vi.fn()} />);
 
       await waitFor(() => {
         expect(screen.getByLabelText("Provider")).toBeInTheDocument();
@@ -738,7 +739,7 @@ describe("SettingsModal", () => {
       mockSaveAiAnalysisSettings.mockResolvedValue({});
       const onClose = vi.fn();
 
-      render(<SettingsModal onClose={onClose} />);
+      renderWithQuery(<SettingsModal onClose={onClose} />);
 
       await waitFor(() => {
         expect(screen.getByLabelText("Provider")).toBeInTheDocument();
@@ -757,7 +758,7 @@ describe("SettingsModal", () => {
       mockGetAiPresets.mockResolvedValue(testPresets);
       mockGetAiConfig.mockResolvedValue(envConfig);
 
-      render(<SettingsModal onClose={vi.fn()} />);
+      renderWithQuery(<SettingsModal onClose={vi.fn()} />);
 
       await waitFor(() => {
         expect(screen.getByRole("button", { name: "Test Connection" })).toBeInTheDocument();
@@ -768,7 +769,7 @@ describe("SettingsModal", () => {
       mockGetAiPresets.mockResolvedValue(testPresets);
       mockGetAiConfig.mockResolvedValue(envConfig);
 
-      render(<SettingsModal onClose={vi.fn()} />);
+      renderWithQuery(<SettingsModal onClose={vi.fn()} />);
 
       await waitFor(() => {
         expect(screen.getByLabelText("Site Profile")).toBeInTheDocument();

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
 import LoginScreen from "./LoginScreen";
+import { renderWithQuery } from "../test-utils";
 
 vi.mock("../api/client", () => ({
   api: {
@@ -20,7 +21,7 @@ describe("LoginScreen", () => {
   });
 
   it("renders the login form with all fields", () => {
-    render(<LoginScreen onLoggedIn={onLoggedIn} />);
+    renderWithQuery(<LoginScreen onLoggedIn={onLoggedIn} />);
 
     expect(screen.getByText("Connect to UniFi Controller")).toBeInTheDocument();
     expect(screen.getByLabelText("Controller URL")).toBeInTheDocument();
@@ -32,17 +33,17 @@ describe("LoginScreen", () => {
   });
 
   it("has default site value of 'default'", () => {
-    render(<LoginScreen onLoggedIn={onLoggedIn} />);
+    renderWithQuery(<LoginScreen onLoggedIn={onLoggedIn} />);
     expect(screen.getByLabelText("Site")).toHaveValue("default");
   });
 
   it("has verify SSL unchecked by default", () => {
-    render(<LoginScreen onLoggedIn={onLoggedIn} />);
+    renderWithQuery(<LoginScreen onLoggedIn={onLoggedIn} />);
     expect(screen.getByLabelText("Verify SSL")).not.toBeChecked();
   });
 
   it("allows entering form values", () => {
-    render(<LoginScreen onLoggedIn={onLoggedIn} />);
+    renderWithQuery(<LoginScreen onLoggedIn={onLoggedIn} />);
 
     fireEvent.change(screen.getByLabelText("Controller URL"), {
       target: { value: "https://192.168.1.1" },
@@ -67,7 +68,7 @@ describe("LoginScreen", () => {
 
   it("calls api.login and onLoggedIn on successful submit", async () => {
     mockLogin.mockResolvedValue(undefined);
-    render(<LoginScreen onLoggedIn={onLoggedIn} />);
+    renderWithQuery(<LoginScreen onLoggedIn={onLoggedIn} />);
 
     fireEvent.change(screen.getByLabelText("Controller URL"), {
       target: { value: "https://192.168.1.1" },
@@ -100,7 +101,7 @@ describe("LoginScreen", () => {
     let resolveLogin!: () => void;
     mockLogin.mockReturnValue(new Promise((r) => { resolveLogin = r; }));
 
-    render(<LoginScreen onLoggedIn={onLoggedIn} />);
+    renderWithQuery(<LoginScreen onLoggedIn={onLoggedIn} />);
 
     fireEvent.change(screen.getByLabelText("Controller URL"), {
       target: { value: "https://192.168.1.1" },
@@ -129,7 +130,7 @@ describe("LoginScreen", () => {
 
   it("displays error message when login fails with Error", async () => {
     mockLogin.mockRejectedValue(new Error("Invalid credentials"));
-    render(<LoginScreen onLoggedIn={onLoggedIn} />);
+    renderWithQuery(<LoginScreen onLoggedIn={onLoggedIn} />);
 
     fireEvent.change(screen.getByLabelText("Controller URL"), {
       target: { value: "https://192.168.1.1" },
@@ -152,7 +153,7 @@ describe("LoginScreen", () => {
 
   it("displays fallback error message when login fails with non-Error", async () => {
     mockLogin.mockRejectedValue("unexpected");
-    render(<LoginScreen onLoggedIn={onLoggedIn} />);
+    renderWithQuery(<LoginScreen onLoggedIn={onLoggedIn} />);
 
     fireEvent.change(screen.getByLabelText("Controller URL"), {
       target: { value: "https://192.168.1.1" },
@@ -173,7 +174,7 @@ describe("LoginScreen", () => {
 
   it("clears error on new submit attempt", async () => {
     mockLogin.mockRejectedValueOnce(new Error("bad"));
-    render(<LoginScreen onLoggedIn={onLoggedIn} />);
+    renderWithQuery(<LoginScreen onLoggedIn={onLoggedIn} />);
 
     fireEvent.change(screen.getByLabelText("Controller URL"), {
       target: { value: "https://192.168.1.1" },
@@ -201,7 +202,7 @@ describe("LoginScreen", () => {
 
   it("passes verifySsl as true when checkbox is checked", async () => {
     mockLogin.mockResolvedValue(undefined);
-    render(<LoginScreen onLoggedIn={onLoggedIn} />);
+    renderWithQuery(<LoginScreen onLoggedIn={onLoggedIn} />);
 
     fireEvent.change(screen.getByLabelText("Controller URL"), {
       target: { value: "https://192.168.1.1" },

@@ -1,42 +1,23 @@
-import { useReducer } from "react";
+import { useState } from "react";
 import type { FormEvent } from "react";
-import { api } from "../api/client";
+import { useAppLogin } from "../hooks/queries";
 
 interface PassphraseScreenProps {
   onAuthenticated: () => void;
 }
 
-interface PassphraseState {
-  password: string;
-  error: string | null;
-  loading: boolean;
-}
-
-const initialState: PassphraseState = {
-  password: "",
-  error: null,
-  loading: false,
-};
-
-function passphraseReducer(state: PassphraseState, update: Partial<PassphraseState>): PassphraseState {
-  return { ...state, ...update };
-}
-
 export default function PassphraseScreen({ onAuthenticated }: PassphraseScreenProps) {
-  const [state, dispatch] = useReducer(passphraseReducer, initialState);
-  const { password, error, loading } = state;
+  const [password, setPassword] = useState("");
+  const appLoginMutation = useAppLogin();
 
-  async function handleSubmit(e: FormEvent) {
+  const error = appLoginMutation.error
+    ? (appLoginMutation.error instanceof Error ? appLoginMutation.error.message : "Authentication failed")
+    : null;
+  const loading = appLoginMutation.isPending;
+
+  function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    dispatch({ error: null, loading: true });
-    try {
-      await api.appLogin(password);
-      onAuthenticated();
-    } catch (err) {
-      dispatch({ error: err instanceof Error ? err.message : "Authentication failed" });
-    } finally {
-      dispatch({ loading: false });
-    }
+    appLoginMutation.mutate(password, { onSuccess: onAuthenticated });
   }
 
   const inputClass =
@@ -76,7 +57,7 @@ export default function PassphraseScreen({ onAuthenticated }: PassphraseScreenPr
             type="password"
             required
             value={password}
-            onChange={(e) => dispatch({ password: e.target.value })}
+            onChange={(e) => setPassword(e.target.value)}
             placeholder="Application password"
             className={inputClass}
           />

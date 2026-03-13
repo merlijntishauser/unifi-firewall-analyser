@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useReducer } from "react";
 import { api } from "../api/client";
 import type { AiPreset } from "../api/types";
+import { useSaveAiConfig, useDeleteAiConfig } from "../hooks/queries";
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -157,6 +158,8 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   const [state, dispatch] = useReducer(settingsReducer, initialSettingsState);
   const { presets, selectedPresetId, baseUrl, apiKey, model, providerType, models, siteProfile, configSource, keySource, hasKey, saving, testing, testResult, error, loading } = state;
   const isEnvSourced = configSource === "env";
+  const saveAiConfigMutation = useSaveAiConfig();
+  const deleteAiConfigMutation = useDeleteAiConfig();
 
   // Load presets, current config, and analysis settings on mount
   useEffect(() => {
@@ -208,14 +211,14 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
     try {
       const saves: Promise<unknown>[] = [api.saveAiAnalysisSettings({ site_profile: siteProfile })];
       if (!isEnvSourced) {
-        saves.push(api.saveAiConfig({ base_url: baseUrl, api_key: apiKey, model, provider_type: providerType }));
+        saves.push(saveAiConfigMutation.mutateAsync({ base_url: baseUrl, api_key: apiKey, model, provider_type: providerType }));
       }
       await Promise.all(saves);
       onClose();
     } catch {
       dispatch({ error: "Failed to save settings", saving: false });
     }
-  }, [baseUrl, apiKey, model, providerType, siteProfile, isEnvSourced, onClose]);
+  }, [baseUrl, apiKey, model, providerType, siteProfile, isEnvSourced, onClose, saveAiConfigMutation]);
 
   const handleTest = useCallback(async () => {
     dispatch({ testing: true, testResult: null });
@@ -230,12 +233,12 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
 
   const handleDelete = useCallback(async () => {
     try {
-      await api.deleteAiConfig();
+      await deleteAiConfigMutation.mutateAsync();
       onClose();
     } catch {
       dispatch({ error: "Failed to delete settings" });
     }
-  }, [onClose]);
+  }, [onClose, deleteAiConfigMutation]);
 
   return (
     <div

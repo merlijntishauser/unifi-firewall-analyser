@@ -1,7 +1,7 @@
 import { useMemo, useReducer, useState } from "react";
 import type { FormEvent } from "react";
-import { api } from "../api/client";
-import type { ZonePair, Rule, Finding, SimulateResponse } from "../api/types";
+import type { ZonePair, Rule, Finding, SimulateRequest, SimulateResponse } from "../api/types";
+import { useSimulate, useAnalyzeWithAi, useToggleRule, useSwapRuleOrder } from "../hooks/queries";
 import ConfirmDialog from "./ConfirmDialog";
 
 interface RulePanelProps {
@@ -13,43 +13,23 @@ interface RulePanelProps {
   onRuleUpdated: () => void;
 }
 
-interface RulePanelState {
+interface SimFormState {
   srcIp: string;
   dstIp: string;
   protocol: string;
   port: string;
   sourcePort: string;
-  simLoading: boolean;
-  simResult: SimulateResponse | null;
-  simError: string | null;
-  aiLoading: boolean;
-  aiError: string | null;
-  aiFindings: Finding[];
-  aiCached: boolean;
-  aiCompleted: boolean;
-  writeLoading: string | null;
-  writeError: string | null;
 }
 
-const initialState: RulePanelState = {
+const initialFormState: SimFormState = {
   srcIp: "",
   dstIp: "",
   protocol: "TCP",
   port: "",
   sourcePort: "",
-  simLoading: false,
-  simResult: null,
-  simError: null,
-  aiLoading: false,
-  aiError: null,
-  aiFindings: [],
-  aiCached: false,
-  aiCompleted: false,
-  writeLoading: null,
-  writeError: null,
 };
 
-function rulePanelReducer(state: RulePanelState, update: Partial<RulePanelState>): RulePanelState {
+function formReducer(state: SimFormState, update: Partial<SimFormState>): SimFormState {
   return { ...state, ...update };
 }
 
@@ -518,59 +498,65 @@ function AiAnalysisStatus({
   );
 }
 
+function buildSimulateRequest(form: SimFormState): SimulateRequest {
+  return {
+    src_ip: form.srcIp,
+    dst_ip: form.dstIp,
+    protocol: form.protocol === "Any" ? "all" : form.protocol.toLowerCase(),
+    port: form.port ? Number(form.port) : null,
+    source_port: form.sourcePort ? Number(form.sourcePort) : null,
+  };
+}
+
+function deriveAiError(error: Error | null, data: { status: string; message?: string } | undefined): string | null {
+  if (error) return error instanceof Error ? error.message : "AI analysis failed";
+  if (data?.status === "error") return data.message ?? "AI analysis failed";
+  return null;
+}
+
+function deriveMutationError(error: unknown, fallback: string): string | null {
+  if (!error) return null;
+  return error instanceof Error ? error.message : fallback;
+}
+
 function SimulationForm({
-  state,
-  dispatch,
+  form,
+  onFormChange,
+  onSubmit,
+  isLoading,
   inputClass,
 }: {
-  state: RulePanelState;
-  dispatch: React.Dispatch<Partial<RulePanelState>>;
+  form: SimFormState;
+  onFormChange: (update: Partial<SimFormState>) => void;
+  onSubmit: (e: FormEvent) => void;
+  isLoading: boolean;
   inputClass: string;
 }) {
-  async function handleSimulate(e: FormEvent) {
-    e.preventDefault();
-    dispatch({ simLoading: true, simError: null, simResult: null });
-    try {
-      const result = await api.simulate({
-        src_ip: state.srcIp,
-        dst_ip: state.dstIp,
-        protocol: state.protocol === "Any" ? "all" : state.protocol.toLowerCase(),
-        port: state.port ? Number(state.port) : null,
-        source_port: state.sourcePort ? Number(state.sourcePort) : null,
-      });
-      dispatch({ simResult: result });
-    } catch (err) {
-      dispatch({ simError: err instanceof Error ? err.message : "Simulation failed" });
-    } finally {
-      dispatch({ simLoading: false });
-    }
-  }
-
   return (
-    <form onSubmit={handleSimulate} className="space-y-2">
+    <form onSubmit={onSubmit} className="space-y-2">
       <h3 className="text-[10px] font-semibold text-gray-400 dark:text-noc-text-dim uppercase tracking-widest">
         Packet Simulation
       </h3>
       <input
         type="text"
         placeholder="Source IP"
-        value={state.srcIp}
-        onChange={(e) => dispatch({ srcIp: e.target.value })}
+        value={form.srcIp}
+        onChange={(e) => onFormChange({ srcIp: e.target.value })}
         required
         className={inputClass}
       />
       <input
         type="text"
         placeholder="Destination IP"
-        value={state.dstIp}
-        onChange={(e) => dispatch({ dstIp: e.target.value })}
+        value={form.dstIp}
+        onChange={(e) => onFormChange({ dstIp: e.target.value })}
         required
         className={inputClass}
       />
       <div className="flex gap-2">
         <select
-          value={state.protocol}
-          onChange={(e) => dispatch({ protocol: e.target.value })}
+          value={form.protocol}
+          onChange={(e) => onFormChange({ protocol: e.target.value })}
           className={inputClass}
         >
           <option value="TCP">TCP</option>
@@ -581,8 +567,8 @@ function SimulationForm({
         <input
           type="number"
           placeholder="Port"
-          value={state.port}
-          onChange={(e) => dispatch({ port: e.target.value })}
+          value={form.port}
+          onChange={(e) => onFormChange({ port: e.target.value })}
           min={1}
           max={65535}
           className={inputClass}
@@ -590,8 +576,8 @@ function SimulationForm({
         <input
           type="number"
           placeholder="Src Port"
-          value={state.sourcePort}
-          onChange={(e) => dispatch({ sourcePort: e.target.value })}
+          value={form.sourcePort}
+          onChange={(e) => onFormChange({ sourcePort: e.target.value })}
           min={1}
           max={65535}
           className={inputClass}
@@ -599,12 +585,31 @@ function SimulationForm({
       </div>
       <button
         type="submit"
-        disabled={state.simLoading}
+        disabled={isLoading}
         className="w-full rounded-lg bg-ub-blue px-3 py-1.5 text-xs font-semibold text-white hover:bg-ub-blue-light focus:outline-none focus:ring-2 focus:ring-ub-blue/40 focus:ring-offset-1 dark:focus:ring-offset-noc-surface disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-all"
       >
-        {state.simLoading ? "Simulating..." : "Simulate"}
+        {isLoading ? "Simulating..." : "Simulate"}
       </button>
     </form>
+  );
+}
+
+function AnalysisSection({ analysis, allFindings }: { analysis: ZonePair["analysis"]; allFindings: Finding[] }) {
+  if (!analysis) return null;
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <div className={`px-2.5 py-1 rounded-md text-xs font-bold text-white ${gradeColor(analysis.grade)}`}>
+          {analysis.grade}
+        </div>
+        <span className="text-xs font-mono text-gray-500 dark:text-noc-text-dim">
+          {analysis.score}/100
+        </span>
+      </div>
+      {allFindings.length > 0 && (
+        <FindingsList findings={allFindings} />
+      )}
+    </div>
   );
 }
 
@@ -706,7 +711,7 @@ export default function RulePanel({
   onClose,
   onRuleUpdated,
 }: RulePanelProps) {
-  const [state, dispatch] = useReducer(rulePanelReducer, initialState);
+  const [form, formDispatch] = useReducer(formReducer, initialFormState);
   const [expandedRuleId, setExpandedRuleId] = useState<string | null>(null);
   const [confirmAction, setConfirmAction] = useState<{
     title: string;
@@ -714,46 +719,55 @@ export default function RulePanel({
     confirmLabel: string;
     action: () => Promise<void>;
   } | null>(null);
+  const [writeLoadingId, setWriteLoadingId] = useState<string | null>(null);
+
+  const simulateMutation = useSimulate();
+  const analyzeMutation = useAnalyzeWithAi();
+  const toggleMutation = useToggleRule();
+  const swapMutation = useSwapRuleOrder();
 
   const sortedRules = useMemo(() => [...pair.rules].sort((a, b) => a.index - b.index), [pair.rules]);
 
+  const aiData = analyzeMutation.data;
+  const aiError = deriveAiError(analyzeMutation.error as Error | null, aiData);
+  const aiFindings = useMemo(() => aiData && aiData.status !== "error" ? aiData.findings : [], [aiData]);
+  const aiCached = aiData?.cached ?? false;
+  const aiCompleted = analyzeMutation.isSuccess && aiData?.status !== "error";
+
   const allFindings = useMemo<Finding[]>(() => [
     ...(pair.analysis?.findings ?? []),
-    ...state.aiFindings,
-  ], [pair.analysis?.findings, state.aiFindings]);
+    ...aiFindings,
+  ], [pair.analysis?.findings, aiFindings]);
 
-  async function handleAiAnalyze() {
-    dispatch({ aiLoading: true, aiError: null, aiCompleted: false });
-    try {
-      const result = await api.analyzeWithAi({
-        source_zone_name: sourceZoneName,
-        destination_zone_name: destZoneName,
-        rules: pair.rules,
-      });
-      if (result.status === "error") {
-        dispatch({ aiError: result.message ?? "AI analysis failed", aiLoading: false });
-      } else {
-        dispatch({ aiFindings: result.findings, aiCached: result.cached, aiCompleted: true, aiLoading: false });
-      }
-    } catch (err) {
-      dispatch({ aiError: err instanceof Error ? err.message : "AI analysis failed", aiLoading: false });
-    }
+  const writeError = deriveMutationError(toggleMutation.error, "Toggle failed")
+    ?? deriveMutationError(swapMutation.error, "Reorder failed");
+
+  function handleSimulate(e: FormEvent) {
+    e.preventDefault();
+    simulateMutation.mutate(buildSimulateRequest(form));
+  }
+
+  function handleAiAnalyze() {
+    analyzeMutation.mutate({
+      source_zone_name: sourceZoneName,
+      destination_zone_name: destZoneName,
+      rules: pair.rules,
+    });
   }
 
   function handleToggle(rule: Rule) {
+    const verb = rule.enabled ? "Disable" : "Enable";
     setConfirmAction({
-      title: `${rule.enabled ? "Disable" : "Enable"} Rule`,
-      message: `${rule.enabled ? "Disable" : "Enable"} "${rule.name}"? This change applies immediately to the controller.`,
-      confirmLabel: rule.enabled ? "Disable" : "Enable",
+      title: `${verb} Rule`,
+      message: `${verb} "${rule.name}"? This change applies immediately to the controller.`,
+      confirmLabel: verb,
       action: async () => {
-        dispatch({ writeLoading: rule.id, writeError: null });
+        setWriteLoadingId(rule.id);
         try {
-          await api.toggleRule(rule.id, !rule.enabled);
+          await toggleMutation.mutateAsync({ ruleId: rule.id, enabled: !rule.enabled });
           onRuleUpdated();
-        } catch (err) {
-          dispatch({ writeError: err instanceof Error ? err.message : "Toggle failed" });
-        } finally {
-          dispatch({ writeLoading: null });
+        } catch { /* captured by toggleMutation.error */ } finally {
+          setWriteLoadingId(null);
         }
       },
     });
@@ -766,18 +780,18 @@ export default function RulePanel({
       message: `Move "${target.name}" ${direction}? This changes rule evaluation order on the controller.`,
       confirmLabel: `Move ${direction}`,
       action: async () => {
-        dispatch({ writeLoading: target.id, writeError: null });
+        setWriteLoadingId(target.id);
         try {
-          await api.swapRuleOrder(ruleA.id, ruleB.id);
+          await swapMutation.mutateAsync({ policyIdA: ruleA.id, policyIdB: ruleB.id });
           onRuleUpdated();
-        } catch (err) {
-          dispatch({ writeError: err instanceof Error ? err.message : "Reorder failed" });
-        } finally {
-          dispatch({ writeLoading: null });
+        } catch { /* captured by swapMutation.error */ } finally {
+          setWriteLoadingId(null);
         }
       },
     });
   }
+
+  const simError = deriveMutationError(simulateMutation.error, "Simulation failed");
 
   const inputClass =
     "w-full rounded-lg border border-gray-300 dark:border-noc-border bg-white dark:bg-noc-input px-2.5 py-1.5 text-xs font-mono text-gray-900 dark:text-noc-text placeholder-gray-400 dark:placeholder-noc-text-dim focus:border-ub-blue focus:outline-none focus:ring-1 focus:ring-ub-blue/40 transition-colors";
@@ -800,28 +814,13 @@ export default function RulePanel({
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
-        {/* Analysis section */}
-        {pair.analysis && (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <div className={`px-2.5 py-1 rounded-md text-xs font-bold text-white ${gradeColor(pair.analysis.grade)}`}>
-                {pair.analysis.grade}
-              </div>
-              <span className="text-xs font-mono text-gray-500 dark:text-noc-text-dim">
-                {pair.analysis.score}/100
-              </span>
-            </div>
-            {allFindings.length > 0 && (
-              <FindingsList findings={allFindings} />
-            )}
-          </div>
-        )}
+        <AnalysisSection analysis={pair.analysis} allFindings={allFindings} />
         <AiAnalysisStatus
-          aiError={state.aiError}
-          aiCompleted={state.aiCompleted}
-          aiCached={state.aiCached}
-          aiFindings={state.aiFindings}
-          aiLoading={state.aiLoading}
+          aiError={aiError}
+          aiCompleted={aiCompleted}
+          aiCached={aiCached}
+          aiFindings={aiFindings}
+          aiLoading={analyzeMutation.isPending}
           aiConfigured={aiConfigured}
           onAnalyze={handleAiAnalyze}
         />
@@ -838,9 +837,9 @@ export default function RulePanel({
               idx={idx}
               totalRules={sortedRules.length}
               isExpanded={expandedRuleId === rule.id}
-              isMatchedRule={state.simResult?.matched_rule_id === rule.id}
-              isWriteLoading={state.writeLoading === rule.id}
-              writeDisabled={state.writeLoading !== null}
+              isMatchedRule={simulateMutation.data?.matched_rule_id === rule.id}
+              isWriteLoading={writeLoadingId === rule.id}
+              writeDisabled={writeLoadingId !== null}
               sourceZoneName={sourceZoneName}
               destZoneName={destZoneName}
               sortedRules={sortedRules}
@@ -851,17 +850,17 @@ export default function RulePanel({
           ))}
         </div>
 
-        {state.writeError && (
+        {writeError && (
           <div className="rounded-lg bg-red-50 dark:bg-status-danger-dim border border-red-200 dark:border-status-danger/20 p-2.5 text-xs text-red-700 dark:text-status-danger">
-            {state.writeError}
+            {writeError}
           </div>
         )}
 
         {/* Packet simulation form */}
-        <SimulationForm state={state} dispatch={dispatch} inputClass={inputClass} />
+        <SimulationForm form={form} onFormChange={formDispatch} onSubmit={handleSimulate} isLoading={simulateMutation.isPending} inputClass={inputClass} />
 
         {/* Simulation result */}
-        <SimulationResult simResult={state.simResult} simError={state.simError} />
+        <SimulationResult simResult={simulateMutation.data ?? null} simError={simError} />
       </div>
     </div>
     <ConfirmDialog

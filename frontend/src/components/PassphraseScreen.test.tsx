@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
 import PassphraseScreen from "./PassphraseScreen";
+import { renderWithQuery } from "../test-utils";
 
 vi.mock("../api/client", () => ({
   api: {
@@ -18,7 +19,7 @@ describe("PassphraseScreen", () => {
   });
 
   it("renders the passphrase form", () => {
-    render(<PassphraseScreen onAuthenticated={vi.fn()} />);
+    renderWithQuery(<PassphraseScreen onAuthenticated={vi.fn()} />);
     expect(screen.getByText("UniFi Firewall Analyser")).toBeInTheDocument();
     expect(screen.getByLabelText("Password")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Unlock" })).toBeInTheDocument();
@@ -28,65 +29,67 @@ describe("PassphraseScreen", () => {
     mockAppLogin.mockResolvedValue({ status: "ok" });
     const onAuthenticated = vi.fn();
 
-    render(<PassphraseScreen onAuthenticated={onAuthenticated} />);
+    renderWithQuery(<PassphraseScreen onAuthenticated={onAuthenticated} />);
 
     fireEvent.change(screen.getByLabelText("Password"), {
       target: { value: "my-secret" },
     });
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Unlock" }));
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Unlock" }));
 
-    expect(mockAppLogin).toHaveBeenCalledWith("my-secret");
-    expect(onAuthenticated).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(mockAppLogin).toHaveBeenCalledWith("my-secret");
+    });
+    await waitFor(() => {
+      expect(onAuthenticated).toHaveBeenCalled();
+    });
   });
 
   it("shows error on failed login", async () => {
     mockAppLogin.mockRejectedValue(new Error("401: Invalid password"));
 
-    render(<PassphraseScreen onAuthenticated={vi.fn()} />);
+    renderWithQuery(<PassphraseScreen onAuthenticated={vi.fn()} />);
 
     fireEvent.change(screen.getByLabelText("Password"), {
       target: { value: "wrong" },
     });
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Unlock" }));
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Unlock" }));
 
-    expect(screen.getByText("401: Invalid password")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("401: Invalid password")).toBeInTheDocument();
+    });
   });
 
   it("shows fallback error for non-Error rejection", async () => {
     mockAppLogin.mockRejectedValue("string error");
 
-    render(<PassphraseScreen onAuthenticated={vi.fn()} />);
+    renderWithQuery(<PassphraseScreen onAuthenticated={vi.fn()} />);
 
     fireEvent.change(screen.getByLabelText("Password"), {
       target: { value: "test" },
     });
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Unlock" }));
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Unlock" }));
 
-    expect(screen.getByText("Authentication failed")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("Authentication failed")).toBeInTheDocument();
+    });
   });
 
   it("shows loading state while authenticating", async () => {
     mockAppLogin.mockReturnValue(new Promise(() => {}));
 
-    render(<PassphraseScreen onAuthenticated={vi.fn()} />);
+    renderWithQuery(<PassphraseScreen onAuthenticated={vi.fn()} />);
 
     fireEvent.change(screen.getByLabelText("Password"), {
       target: { value: "test" },
     });
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Unlock" }));
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Unlock" }));
 
-    expect(screen.getByText("Authenticating...")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("Authenticating...")).toBeInTheDocument();
+    });
   });
 });

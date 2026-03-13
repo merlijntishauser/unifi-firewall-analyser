@@ -1,50 +1,47 @@
 import { useReducer } from "react";
 import type { FormEvent } from "react";
-import { api } from "../api/client";
+import { useLogin } from "../hooks/queries";
 
 interface LoginScreenProps {
   onLoggedIn: () => void;
 }
 
-interface LoginState {
+interface LoginFormState {
   url: string;
   username: string;
   password: string;
   site: string;
   verifySsl: boolean;
-  error: string | null;
-  loading: boolean;
 }
 
-const initialLoginState: LoginState = {
+const initialLoginFormState: LoginFormState = {
   url: "",
   username: "",
   password: "",
   site: "default",
   verifySsl: false,
-  error: null,
-  loading: false,
 };
 
-function loginReducer(state: LoginState, update: Partial<LoginState>): LoginState {
+function loginFormReducer(state: LoginFormState, update: Partial<LoginFormState>): LoginFormState {
   return { ...state, ...update };
 }
 
 export default function LoginScreen({ onLoggedIn }: LoginScreenProps) {
-  const [state, dispatch] = useReducer(loginReducer, initialLoginState);
-  const { url, username, password, site, verifySsl, error, loading } = state;
+  const [form, dispatch] = useReducer(loginFormReducer, initialLoginFormState);
+  const { url, username, password, site, verifySsl } = form;
+  const loginMutation = useLogin();
 
-  async function handleSubmit(e: FormEvent) {
+  const error = loginMutation.error
+    ? (loginMutation.error instanceof Error ? loginMutation.error.message : "Login failed")
+    : null;
+  const loading = loginMutation.isPending;
+
+  function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    dispatch({ error: null, loading: true });
-    try {
-      await api.login(url, username, password, site, verifySsl);
-      onLoggedIn();
-    } catch (err) {
-      dispatch({ error: err instanceof Error ? err.message : "Login failed" });
-    } finally {
-      dispatch({ loading: false });
-    }
+    loginMutation.mutate(
+      { url, username, password, site, verifySsl },
+      { onSuccess: onLoggedIn },
+    );
   }
 
   const inputClass =

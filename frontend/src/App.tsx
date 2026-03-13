@@ -1,8 +1,18 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
 import type { ColorMode } from "@xyflow/react";
-import { api } from "./api/client";
 import type { ZonePair } from "./api/types";
-import { useFirewallData } from "./hooks/useFirewallData";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  queryKeys,
+  useAppAuthStatus,
+  useAuthStatus,
+  useZones,
+  useZonePairs,
+  useAiConfig,
+  useZoneFilter,
+  useLogout,
+  useSaveZoneFilter,
+} from "./hooks/queries";
 import LoginScreen from "./components/LoginScreen";
 import MatrixSidebar from "./components/MatrixSidebar";
 import PassphraseScreen from "./components/PassphraseScreen";
@@ -12,47 +22,64 @@ import ZoneGraph from "./components/ZoneGraph";
 import ZoneMatrix from "./components/ZoneMatrix";
 import RulePanel from "./components/RulePanel";
 
-interface ConnectionInfo {
-  url: string;
-  username: string;
-  source: "env" | "runtime" | "none";
-}
-
 interface AiInfo {
   configured: boolean;
   provider: string;
   model: string;
 }
 
+function useAuthFlow() {
+  const appAuth = useAppAuthStatus();
+  const appAuthRequired = appAuth.data?.required ?? false;
+  const appAuthenticated = appAuth.data?.authenticated ?? false;
+  const appAuthResolved = !appAuth.isLoading;
+
+  const shouldCheckUnifi = appAuthResolved && (!appAuthRequired || appAuthenticated);
+  const authQuery = useAuthStatus(shouldCheckUnifi);
+  const authed = authQuery.data?.configured ?? false;
+  const authLoading = appAuth.isLoading || (shouldCheckUnifi && authQuery.isLoading);
+  const connectionInfo = useMemo(
+    () => authed ? { url: authQuery.data!.url, username: authQuery.data!.username, source: authQuery.data!.source } : null,
+    [authed, authQuery.data],
+  );
+
+  return { appAuthRequired, appAuthenticated, authed, authLoading, connectionInfo, refetchAppAuth: appAuth.refetch, refetchAuth: authQuery.refetch };
+}
+
+function useFirewallQueries(enabled: boolean) {
+  const zonesQuery = useZones(enabled);
+  const zonePairsQuery = useZonePairs(enabled);
+  const zones = useMemo(() => zonesQuery.data ?? [], [zonesQuery.data]);
+  const zonePairs = useMemo(() => zonePairsQuery.data ?? [], [zonePairsQuery.data]);
+  return { zones, zonePairs, dataLoading: zonesQuery.isLoading || zonePairsQuery.isLoading, dataError: zonesQuery.error ?? zonePairsQuery.error };
+}
+
+function useAiInfo(enabled: boolean): { aiConfigured: boolean; aiInfo: AiInfo } {
+  const aiConfigQuery = useAiConfig(enabled);
+  const aiConfigured = aiConfigQuery.data?.has_key ?? false;
+  const aiInfo: AiInfo = useMemo(() => ({
+    configured: aiConfigQuery.data?.has_key ?? false,
+    provider: aiConfigQuery.data?.provider_type ?? "",
+    model: aiConfigQuery.data?.model ?? "",
+  }), [aiConfigQuery.data]);
+  return { aiConfigured, aiInfo };
+}
+
 interface AppState {
-  appAuthRequired: boolean;
-  appAuthenticated: boolean;
-  authed: boolean;
-  authLoading: boolean;
   colorMode: ColorMode;
   showHidden: boolean;
   selectedPair: ZonePair | null;
   focusZoneIds: string[] | null;
   settingsOpen: boolean;
-  aiConfigured: boolean;
-  connectionInfo: ConnectionInfo | null;
-  aiInfo: AiInfo;
   hiddenZoneIds: Set<string>;
 }
 
 const initialAppState: AppState = {
-  appAuthRequired: false,
-  appAuthenticated: false,
-  authed: false,
-  authLoading: true,
   colorMode: "dark" as ColorMode,
   showHidden: false,
   selectedPair: null,
   focusZoneIds: null,
   settingsOpen: false,
-  aiConfigured: false,
-  connectionInfo: null,
-  aiInfo: { configured: false, provider: "", model: "" },
   hiddenZoneIds: new Set<string>(),
 };
 
@@ -69,6 +96,17 @@ function appReducer(state: AppState, action: AppAction): AppState {
   return { ...state, ...update };
 }
 
+function getLoadingMessage(authLoading: boolean, dataLoading: boolean): string | null {
+  if (authLoading) return "Checking authentication...";
+  if (dataLoading) return "Connecting to controller...";
+  return null;
+}
+
+function formatError(error: Error | null): string | null {
+  if (!error) return null;
+  return error instanceof Error ? error.message : String(error);
+}
+
 function LoadingOverlay({ message }: { message: string | null }) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center gap-3">
@@ -82,68 +120,42 @@ function LoadingOverlay({ message }: { message: string | null }) {
 
 function App() {
   const [state, dispatch] = useReducer(appReducer, initialAppState, initAppState);
-  const { appAuthRequired, appAuthenticated, authed, authLoading, colorMode, showHidden, selectedPair, focusZoneIds, settingsOpen, aiConfigured, connectionInfo, aiInfo, hiddenZoneIds } = state;
+  const { colorMode, showHidden, selectedPair, focusZoneIds, settingsOpen, hiddenZoneIds } = state;
+  const qc = useQueryClient();
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", colorMode === "dark");
   }, [colorMode]);
 
-  const { zones, zonePairs, loading, status: dataStatus, error, refresh } = useFirewallData(authed);
+  const { appAuthRequired, appAuthenticated, authed, authLoading, connectionInfo, refetchAppAuth, refetchAuth } = useAuthFlow();
+  const { zones, zonePairs, dataLoading, dataError } = useFirewallQueries(authed);
+  const { aiConfigured, aiInfo } = useAiInfo(authed);
 
-  const refreshAiConfig = useCallback(() => {
-    api.getAiConfig()
-      .then((config) => dispatch({
-        aiConfigured: config.has_key,
-        aiInfo: { configured: config.has_key, provider: config.provider_type, model: config.model },
-      }))
-      .catch(() => {});
-  }, []);
+  const zoneFilterQuery = useZoneFilter(authed);
 
-  const refreshZoneFilter = useCallback(() => {
-    api.getZoneFilter()
-      .then((filter) => dispatch({ hiddenZoneIds: new Set(filter.hidden_zone_ids) }))
-      .catch(() => {});
-  }, []);
-
-  const saveTimerRef = useRef<number | undefined>(undefined);
-
-  const checkUnifiAuth = useCallback(() => {
-    api
-      .getAuthStatus()
-      .then((status) => {
-        dispatch({
-          authed: status.configured,
-          connectionInfo: status.configured ? { url: status.url, username: status.username, source: status.source } : null,
-        });
-        if (status.configured) {
-          refreshAiConfig();
-          refreshZoneFilter();
-        }
-      })
-      .catch(() => {
-        dispatch({ authed: false });
-      })
-      .finally(() => {
-        dispatch({ authLoading: false });
-      });
-  }, [refreshAiConfig, refreshZoneFilter]);
-
+  // Sync hiddenZoneIds from server when filter data arrives
+  const lastFilterRef = useRef<string[] | undefined>(undefined);
   useEffect(() => {
-    api
-      .getAppAuthStatus()
-      .then((appAuth) => {
-        dispatch({ appAuthRequired: appAuth.required, appAuthenticated: appAuth.authenticated });
-        if (!appAuth.required || appAuth.authenticated) {
-          checkUnifiAuth();
-        } else {
-          dispatch({ authLoading: false });
-        }
-      })
-      .catch(() => {
-        // If app-status fails, proceed without app auth
-        checkUnifiAuth();
-      });
-  }, [checkUnifiAuth]);
+    const serverIds = zoneFilterQuery.data?.hidden_zone_ids;
+    if (serverIds && serverIds !== lastFilterRef.current) {
+      lastFilterRef.current = serverIds;
+      dispatch({ hiddenZoneIds: new Set(serverIds) });
+    }
+  }, [zoneFilterQuery.data]);
+
+  // --- Mutations ---
+  const logoutMutation = useLogout();
+  const saveZoneFilterMutation = useSaveZoneFilter();
+
+  const handleLogout = useCallback(async () => {
+    await logoutMutation.mutateAsync();
+    dispatch({ selectedPair: null, focusZoneIds: null });
+  }, [logoutMutation]);
+
+  const handleRefresh = useCallback(() => {
+    qc.invalidateQueries({ queryKey: queryKeys.zones });
+    qc.invalidateQueries({ queryKey: queryKeys.zonePairs });
+  }, [qc]);
 
   // Keep selectedPair in sync when zonePairs refreshes (e.g. after toggle/reorder)
   useEffect(() => {
@@ -156,11 +168,6 @@ function App() {
       }
     }
   }, [zonePairs, selectedPair]);
-
-  const handleLogout = useCallback(async () => {
-    await api.logout();
-    dispatch({ authed: false });
-  }, []);
 
   const getZoneName = useMemo(() => {
     const map = new Map<string, string>();
@@ -190,6 +197,8 @@ function App() {
 
   const hasHiddenZones = hiddenZoneIds.size > 0;
 
+  const saveTimerRef = useRef<number | undefined>(undefined);
+
   const handleToggleZone = useCallback((zoneId: string) => {
     dispatch((prev) => {
       const next = new Set(prev.hiddenZoneIds);
@@ -200,11 +209,11 @@ function App() {
       }
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = window.setTimeout(() => {
-        api.saveZoneFilter([...next]).catch(() => {});
+        saveZoneFilterMutation.mutate([...next]);
       }, 300);
       return { hiddenZoneIds: next };
     });
-  }, []);
+  }, [saveZoneFilterMutation]);
 
   const handleEdgeSelect = useCallback((pair: ZonePair) => {
     dispatch({ selectedPair: pair });
@@ -232,19 +241,19 @@ function App() {
     return (
       <PassphraseScreen
         onAuthenticated={() => {
-          dispatch({ appAuthenticated: true, authLoading: true });
-          checkUnifiAuth();
+          refetchAppAuth();
         }}
       />
     );
   }
 
   if (!authed && !authLoading) {
-    return <LoginScreen onLoggedIn={() => dispatch({ authed: true })} />;
+    return <LoginScreen onLoggedIn={() => refetchAuth()} />;
   }
 
-  const showLoadingOverlay = authLoading || (loading && zones.length === 0);
-  const loadingMessage = authLoading ? "Checking authentication..." : dataStatus;
+  const showLoadingOverlay = authLoading || (dataLoading && zones.length === 0);
+  const loadingMessage = getLoadingMessage(authLoading, dataLoading);
+  const errorMessage = formatError(dataError);
 
   return (
     <div
@@ -257,17 +266,17 @@ function App() {
         onShowHiddenChange={(val: boolean) => dispatch({ showHidden: val })}
         hasHiddenZones={hasHiddenZones}
         hasDisabledRules={hasDisabledRules}
-        onRefresh={refresh}
-        loading={loading}
+        onRefresh={handleRefresh}
+        loading={dataLoading}
         onLogout={handleLogout}
         onOpenSettings={() => dispatch({ settingsOpen: true })}
         connectionInfo={connectionInfo}
         aiInfo={aiInfo}
       />
-      {settingsOpen && <SettingsModal onClose={() => { dispatch({ settingsOpen: false }); refreshAiConfig(); }} />}
-      {error && (
+      {settingsOpen && <SettingsModal onClose={() => { dispatch({ settingsOpen: false }); qc.invalidateQueries({ queryKey: queryKeys.aiConfig }); }} />}
+      {errorMessage && (
         <div className="bg-red-50 dark:bg-status-danger-dim border-b border-red-200 dark:border-status-danger/20 px-4 py-2 text-sm text-red-700 dark:text-status-danger">
-          {error}
+          {errorMessage}
         </div>
       )}
       <div className="flex-1 flex overflow-hidden bg-gray-50 dark:bg-noc-bg">
@@ -314,7 +323,7 @@ function App() {
             destZoneName={getZoneName(selectedPair.destination_zone_id)}
             aiConfigured={aiConfigured}
             onClose={() => dispatch({ selectedPair: null })}
-            onRuleUpdated={refresh}
+            onRuleUpdated={handleRefresh}
           />
         )}
       </div>
