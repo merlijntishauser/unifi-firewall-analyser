@@ -1,4 +1,4 @@
-.PHONY: up down build build-prod build-prod-alpine run-prod run-prod-alpine smoke-prod smoke-prod-alpine quality complexity test react-doctor backend-install frontend-install ci e2e e2e-headed e2e-prod e2e-prod-up e2e-prod-down help
+.PHONY: up down dev build build-prod build-prod-alpine run-prod run-prod-alpine smoke-prod smoke-prod-alpine quality complexity test react-doctor backend-install frontend-install ci e2e e2e-headed e2e-prod e2e-prod-up e2e-prod-down help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
@@ -14,6 +14,10 @@ up: ## Start containers
 
 down: ## Stop containers
 	docker compose down
+
+dev: ## Run API in Docker, frontend natively (for Tidewave/local tooling)
+	docker compose up -d api
+	cd frontend && API_PROXY_TARGET=http://localhost:8001 npm run dev
 
 build: ## Build containers
 	docker compose build

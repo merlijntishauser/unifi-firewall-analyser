@@ -30,7 +30,7 @@ function startupBanner(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), tidewave({ allowRemoteAccess: true }), startupBanner()],
+  plugins: [react(), tailwindcss(), tidewave(), startupBanner()],
   server: {
     host: "0.0.0.0",
     proxy: {
