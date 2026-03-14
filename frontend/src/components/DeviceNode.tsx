@@ -11,7 +11,7 @@ export interface DeviceNodeData {
   [key: string]: unknown;
 }
 
-export type DeviceNode = Node<DeviceNodeData, "device">;
+type DeviceNode = Node<DeviceNodeData, "device">;
 
 function StatusDot({ status }: { status: string }) {
   const color =

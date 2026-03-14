@@ -15,6 +15,9 @@ cd "$ROOT/backend" && uv run pytest -q
 echo "=== Frontend: tsc ==="
 cd "$ROOT/frontend" && npx tsc --noEmit
 
+echo "=== Frontend: build ==="
+cd "$ROOT/frontend" && npx vite build
+
 echo "=== Frontend: eslint ==="
 cd "$ROOT/frontend" && npx eslint src/ --no-warn-ignored
 
