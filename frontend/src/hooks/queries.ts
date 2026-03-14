@@ -9,6 +9,8 @@ export const queryKeys = {
   authStatus: ["auth-status"] as const,
   aiConfig: ["ai-config"] as const,
   zoneFilter: ["zone-filter"] as const,
+  topologySvg: (theme: string, projection: string) => ["topology-svg", theme, projection] as const,
+  topologyThemes: ["topology-themes"] as const,
 };
 
 // --- Queries ---
@@ -59,6 +61,26 @@ export function useZoneFilter(enabled: boolean) {
     enabled,
   });
 }
+
+/* v8 ignore start -- mocked at hook level in component tests */
+export function useTopologySvg(theme: string, projection: string, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.topologySvg(theme, projection),
+    queryFn: () => api.getTopologySvg(theme, projection),
+    enabled,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useTopologyThemes(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.topologyThemes,
+    queryFn: api.getTopologyThemes,
+    enabled,
+    staleTime: Infinity,
+  });
+}
+/* v8 ignore stop */
 
 // --- Mutations ---
 

@@ -187,4 +187,21 @@ export async function mockApi(page: Page, options: { authenticated?: boolean } =
     }
     return route.fulfill({ json: { status: "ok" } });
   });
+
+  // Topology module
+  await page.route("**/api/topology/svg**", (route) =>
+    route.fulfill({
+      json: { svg: '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><text x="10" y="30">Topology</text></svg>', theme: "unifi", projection: "orthogonal" },
+    }),
+  );
+
+  await page.route("**/api/topology/themes", (route) =>
+    route.fulfill({
+      json: [
+        { id: "unifi", name: "UniFi" }, { id: "unifi-dark", name: "UniFi Dark" },
+        { id: "minimal", name: "Minimal" }, { id: "minimal-dark", name: "Minimal Dark" },
+        { id: "classic", name: "Classic" }, { id: "classic-dark", name: "Classic Dark" },
+      ],
+    }),
+  );
 }

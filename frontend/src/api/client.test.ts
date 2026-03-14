@@ -294,4 +294,26 @@ describe("api client", () => {
       expect(JSON.parse(init.body)).toEqual({ policy_id_a: "r1", policy_id_b: "r2" });
     });
   });
+
+  describe("getTopologySvg", () => {
+    it("calls correct URL with theme and projection params", async () => {
+      mockFetch.mockResolvedValue(mockOkResponse({ svg: "<svg/>", theme: "unifi", projection: "orthogonal" }));
+      const result = await api.getTopologySvg("unifi", "orthogonal");
+      expect(result.svg).toBe("<svg/>");
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/topology/svg?theme=unifi&projection=orthogonal",
+        expect.objectContaining({}),
+      );
+    });
+  });
+
+  describe("getTopologyThemes", () => {
+    it("fetches themes from correct endpoint", async () => {
+      const themes = [{ id: "unifi", name: "UniFi" }];
+      mockFetch.mockResolvedValue(mockOkResponse(themes));
+      const result = await api.getTopologyThemes();
+      expect(result).toEqual(themes);
+      expect(mockFetch).toHaveBeenCalledWith("/api/topology/themes", expect.objectContaining({}));
+    });
+  });
 });

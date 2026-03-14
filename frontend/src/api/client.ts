@@ -10,6 +10,8 @@ import type {
   Rule,
   SimulateRequest,
   SimulateResponse,
+  TopologySvgResponse,
+  TopologyTheme,
   Zone,
   ZoneFilter,
   ZonePair,
@@ -104,4 +106,9 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ policy_id_a: policyIdA, policy_id_b: policyIdB }),
     }),
+  getTopologySvg: (theme: string, projection: string) =>
+    fetchJson<TopologySvgResponse>(
+      `/topology/svg?theme=${encodeURIComponent(theme)}&projection=${encodeURIComponent(projection)}`,
+    ),
+  getTopologyThemes: () => fetchJson<TopologyTheme[]>("/topology/themes"),
 };

@@ -86,6 +86,17 @@ class ZonePair(BaseModel):
     analysis: ZonePairAnalysis | None = None
 
 
+class TopologySvgResponse(BaseModel):
+    svg: str
+    theme: str
+    projection: str
+
+
+class TopologyTheme(BaseModel):
+    id: str
+    name: str
+
+
 class AppLoginInput(BaseModel):
     password: str
 

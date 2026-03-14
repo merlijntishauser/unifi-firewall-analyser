@@ -19,6 +19,7 @@ from app.routers.auth import router as auth_router
 from app.routers.rules import router as rules_router
 from app.routers.settings import router as settings_router
 from app.routers.simulate import router as simulate_router
+from app.routers.topology import router as topology_router
 from app.routers.zone_filter import router as zone_filter_router
 from app.routers.zones import router as zones_router
 
@@ -153,6 +154,9 @@ app.include_router(rules_router, prefix="/api/firewall")
 app.include_router(simulate_router, prefix="/api/firewall")
 app.include_router(analyze_router, prefix="/api/firewall")
 app.include_router(zone_filter_router, prefix="/api/firewall")
+
+# Topology module
+app.include_router(topology_router, prefix="/api/topology")
 
 # Shared (cross-module)
 app.include_router(auth_router)

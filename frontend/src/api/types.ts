@@ -163,3 +163,14 @@ export interface AppAuthStatus {
   required: boolean;
   authenticated: boolean;
 }
+
+export interface TopologySvgResponse {
+  svg: string;
+  theme: string;
+  projection: string;
+}
+
+export interface TopologyTheme {
+  id: string;
+  name: string;
+}
