@@ -13,6 +13,12 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+      start_period: 5s
 
   frontend:
     build: ./frontend
@@ -25,4 +31,5 @@ services:
     environment:
       - API_PROXY_TARGET=http://api:8000
     depends_on:
-      - api
+      api:
+        condition: service_healthy
