@@ -34,7 +34,7 @@ function getGradeDotColor(grade: string | null): string | null {
 function buildTooltip(userRuleCount: number, predefinedRuleCount: number): string {
   const parts: string[] = [];
   if (userRuleCount > 0) parts.push(`${userRuleCount} user rule${userRuleCount !== 1 ? "s" : ""}`);
-  if (predefinedRuleCount > 0) parts.push(`${predefinedRuleCount} built-in rule${predefinedRuleCount !== 1 ? "s" : ""}`);
+  if (predefinedRuleCount > 0) parts.push(`${predefinedRuleCount} predefined rule${predefinedRuleCount !== 1 ? "s" : ""}`);
   return parts.join(", ");
 }
 
