@@ -39,7 +39,6 @@
     "jsdom": "^28.1.0",
     "react-doctor": "^0.0.30",
     "tailwindcss": "^4.2.1",
-    "tidewave": "^0.6.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.48.0",
     "vite": "^7.3.1",

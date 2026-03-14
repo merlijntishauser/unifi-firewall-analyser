@@ -1,7 +1,6 @@
 /// <reference types="vitest" />
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import tidewave from "tidewave/vite-plugin";
 import { defineConfig } from "vitest/config";
 import type { Plugin } from "vite";
 
@@ -30,7 +29,7 @@ function startupBanner(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), tidewave(), startupBanner()],
+  plugins: [react(), tailwindcss(), startupBanner()],
   server: {
     host: "0.0.0.0",
     proxy: {
