@@ -130,6 +130,10 @@ const SIMULATE_RESPONSE = {
 export async function mockApi(page: Page, options: { authenticated?: boolean } = {}): Promise<void> {
   let loggedIn = options.authenticated ?? true;
 
+  await page.route("**/api/auth/app-status", (route) =>
+    route.fulfill({ json: { required: false, authenticated: false } }),
+  );
+
   await page.route("**/api/auth/status", (route) =>
     route.fulfill({
       json: {
