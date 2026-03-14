@@ -15,11 +15,11 @@ const GRADES = [
 ];
 
 const CELL_COLORS = [
-  { label: "Allow All", bg: "bg-green-50 dark:bg-status-success/10 border-green-200 dark:border-status-success/25" },
-  { label: "Allow Return", bg: "bg-blue-50 dark:bg-ub-blue/10 border-blue-200 dark:border-ub-blue/25" },
-  { label: "Block All", bg: "bg-red-50 dark:bg-status-danger/10 border-red-200 dark:border-status-danger/25" },
-  { label: "Mixed", bg: "bg-amber-50 dark:bg-status-warning/10 border-amber-200 dark:border-status-warning/25" },
-  { label: "No rules", bg: "bg-gray-50 dark:bg-noc-raised/50 border-gray-200 dark:border-noc-border" },
+  { label: "Allow All", hint: "All traffic permitted", bg: "bg-green-50 dark:bg-status-success/10 border-green-200 dark:border-status-success/25" },
+  { label: "Allow Return", hint: "Only established connections", bg: "bg-blue-50 dark:bg-ub-blue/10 border-blue-200 dark:border-ub-blue/25" },
+  { label: "Block All", hint: "All traffic denied", bg: "bg-red-50 dark:bg-status-danger/10 border-red-200 dark:border-status-danger/25" },
+  { label: "Mixed", hint: "Both allow and block rules", bg: "bg-amber-50 dark:bg-status-warning/10 border-amber-200 dark:border-status-warning/25" },
+  { label: "No rules", hint: "No policies configured", bg: "bg-gray-50 dark:bg-noc-raised/50 border-gray-200 dark:border-noc-border" },
 ];
 
 const UNIFI_DEFAULT_ZONE_NAMES = new Set(["external", "internal", "gateway", "vpn", "hotspot", "dmz", "guest"]);
@@ -65,10 +65,13 @@ export default function MatrixSidebar({ zones, hiddenZoneIds, onToggleZone }: Ma
       <section>
         <SectionHeading>Cell Colors</SectionHeading>
         <div className="flex flex-col gap-1.5">
-          {CELL_COLORS.map(({ label, bg }) => (
-            <div key={label} className="flex items-center gap-2">
-              <span className={`w-4 h-4 rounded border shrink-0 ${bg}`} />
-              <span className="text-[11px] text-gray-500 dark:text-noc-text-secondary">{label}</span>
+          {CELL_COLORS.map(({ label, hint, bg }) => (
+            <div key={label} className="flex items-start gap-2">
+              <span className={`w-4 h-4 rounded border shrink-0 mt-0.5 ${bg}`} />
+              <div className="flex flex-col min-w-0">
+                <span className="text-[11px] text-gray-500 dark:text-noc-text-secondary">{label}</span>
+                <span className="text-[10px] text-gray-400 dark:text-noc-text-dim/70">{hint}</span>
+              </div>
             </div>
           ))}
         </div>
