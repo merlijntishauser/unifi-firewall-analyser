@@ -1,10 +1,13 @@
-"""Topology rendering service.
+"""Topology service.
 
-Fetches device and client data from the UniFi controller and renders
+Fetches device and client data from the UniFi controller. Provides
+structured device/edge data for the interactive map and renders
 network topology diagrams as SVG via the unifi-topology library.
 """
 
 from __future__ import annotations
+
+from typing import Any
 
 import structlog
 from unifi_topology import (
@@ -23,29 +26,112 @@ from unifi_topology.model import (
 from unifi_topology.render import render_svg, render_svg_isometric, resolve_svg_themes
 
 from app.config import UnifiCredentials
+from app.models import TopologyDevice, TopologyDevicesResponse, TopologyEdge, TopologyPort
 from app.services.firewall import to_topology_config
 
 log = structlog.get_logger()
 
-VALID_THEMES = ("classic", "classic-dark", "minimal", "minimal-dark", "unifi", "unifi-dark")
 VALID_PROJECTIONS = ("orthogonal", "isometric")
 
-THEME_LABELS: dict[str, str] = {
-    "classic": "Classic",
-    "classic-dark": "Classic Dark",
-    "minimal": "Minimal",
-    "minimal-dark": "Minimal Dark",
-    "unifi": "UniFi",
-    "unifi-dark": "UniFi Dark",
-}
+
+def _raw_device_lookup(raw_devices: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Build a MAC -> raw device dict lookup."""
+    return {str(d.get("mac", "")).lower(): d for d in raw_devices if "mac" in d}
 
 
-def get_topology_svg(credentials: UnifiCredentials, theme_name: str = "unifi", projection: str = "orthogonal") -> str:
+def _build_device_model(
+    device: Any,
+    raw: dict[str, Any],
+    lldp_connected: dict[str, str],
+) -> TopologyDevice:
+    """Convert a normalized Device + raw dict into a TopologyDevice model."""
+    ports = []
+    for port in device.port_table:
+        if port.port_idx is None:
+            continue
+        connected_mac = None
+        connected_name = None
+        for lldp in device.lldp_info:
+            if lldp.local_port_idx == port.port_idx:
+                connected_mac = lldp.chassis_id
+                connected_name = lldp_connected.get(lldp.chassis_id)
+                break
+        ports.append(TopologyPort(
+            idx=port.port_idx,
+            name=port.name or port.ifname or f"Port {port.port_idx}",
+            speed=port.speed,
+            up=port.up or False,
+            poe=port.port_poe,
+            poe_power=port.poe_power if port.poe_good else None,
+            connected_device=connected_name,
+            connected_mac=connected_mac,
+            native_vlan=port.native_vlan,
+        ))
+    ports.sort(key=lambda p: p.idx)
+
+    state = raw.get("state", 0)
+    status = "online" if state == 1 else "offline" if state == 0 else "unknown"
+
+    return TopologyDevice(
+        mac=device.mac,
+        name=device.name,
+        model=device.model,
+        model_name=device.model_name,
+        type=device.type,
+        ip=device.ip,
+        version=device.version,
+        uptime=int(raw.get("uptime", 0)),
+        status=status,
+        client_count=int(raw.get("num_sta", 0)),
+        ports=ports,
+    )
+
+
+def get_topology_devices(credentials: UnifiCredentials) -> TopologyDevicesResponse:
+    """Fetch devices and edges for the interactive topology map."""
+    config = to_topology_config(credentials)
+
+    raw_devices: list[dict[str, Any]] = list(fetch_devices(config, site=credentials.site))  # type: ignore[arg-type]
+    devices = normalize_devices(raw_devices)
+    raw_lookup = _raw_device_lookup(raw_devices)
+
+    gateway_macs = [d.mac for d in devices if d.type == "gateway"]
+    topology = build_topology(
+        devices, include_ports=True, only_unifi=False, gateways=gateway_macs,
+    )
+
+    lldp_connected = {d.mac.lower(): d.name for d in devices}
+
+    device_models = []
+    for device in devices:
+        raw = raw_lookup.get(device.mac.lower(), {})
+        device_models.append(_build_device_model(device, raw, lldp_connected))
+
+    edge_models = []
+    for edge in topology.tree_edges:
+        edge_models.append(TopologyEdge(
+            from_mac=edge.left,
+            to_mac=edge.right,
+            speed=edge.speed,
+            poe=edge.poe,
+            wireless=edge.wireless,
+        ))
+
+    log.info("topology_devices", device_count=len(device_models), edge_count=len(edge_models))
+    return TopologyDevicesResponse(devices=device_models, edges=edge_models)
+
+
+def get_topology_svg(
+    credentials: UnifiCredentials,
+    color_mode: str = "dark",
+    projection: str = "isometric",
+) -> str:
     """Render the network topology as an SVG string."""
     if projection not in VALID_PROJECTIONS:
         msg = f"Invalid projection: {projection}. Valid: {', '.join(VALID_PROJECTIONS)}"
         raise ValueError(msg)
 
+    theme_name = "unifi-dark" if color_mode == "dark" else "unifi"
     config = to_topology_config(credentials)
 
     raw_devices = fetch_devices(config, site=credentials.site)
@@ -53,10 +139,14 @@ def get_topology_svg(credentials: UnifiCredentials, theme_name: str = "unifi", p
     devices = normalize_devices(raw_devices)
 
     gateway_macs = [d.mac for d in devices if d.type == "gateway"]
-    topology = build_topology(devices, include_ports=True, only_unifi=False, gateways=gateway_macs)
+    topology = build_topology(
+        devices, include_ports=True, only_unifi=True, gateways=gateway_macs,
+    )
     device_index = build_device_index(devices)
-    node_types = build_node_type_map(devices, raw_clients)
-    client_edges = build_client_edges(raw_clients, device_index)
+    node_types = build_node_type_map(devices, raw_clients, only_unifi=True)
+    client_edges = build_client_edges(
+        raw_clients, device_index, only_unifi=True,
+    )
     edges = topology.tree_edges + client_edges
 
     gateway = next((d for d in devices if d.type == "gateway"), None)
@@ -68,7 +158,7 @@ def get_topology_svg(credentials: UnifiCredentials, theme_name: str = "unifi", p
     log.info(
         "topology_render",
         theme=theme_name, projection=projection,
-        device_count=len(devices), client_count=len(raw_clients), edge_count=len(edges),
+        device_count=len(devices), edge_count=len(edges),
     )
 
     if projection == "isometric":
@@ -80,8 +170,3 @@ def get_topology_svg(credentials: UnifiCredentials, theme_name: str = "unifi", p
         edges=edges, node_types=node_types, theme=theme,
         wan_info=wan_info, vpn_tunnels=vpn_tunnels,
     )
-
-
-def get_available_themes() -> list[dict[str, str]]:
-    """Return the list of available SVG theme IDs and display names."""
-    return [{"id": tid, "name": THEME_LABELS[tid]} for tid in VALID_THEMES]

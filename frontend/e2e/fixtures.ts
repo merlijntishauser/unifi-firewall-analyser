@@ -191,17 +191,19 @@ export async function mockApi(page: Page, options: { authenticated?: boolean } =
   // Topology module
   await page.route("**/api/topology/svg**", (route) =>
     route.fulfill({
-      json: { svg: '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><text x="10" y="30">Topology</text></svg>', theme: "unifi", projection: "orthogonal" },
+      json: { svg: '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><text x="10" y="30">Topology</text></svg>', projection: "isometric" },
     }),
   );
 
-  await page.route("**/api/topology/themes", (route) =>
+  await page.route("**/api/topology/devices", (route) =>
     route.fulfill({
-      json: [
-        { id: "unifi", name: "UniFi" }, { id: "unifi-dark", name: "UniFi Dark" },
-        { id: "minimal", name: "Minimal" }, { id: "minimal-dark", name: "Minimal Dark" },
-        { id: "classic", name: "Classic" }, { id: "classic-dark", name: "Classic Dark" },
-      ],
+      json: {
+        devices: [
+          { mac: "aa:01", name: "Gateway", model: "UDM-Pro", model_name: "UDM Pro", type: "gateway", ip: "192.168.1.1", version: "4.0.6", uptime: 86400, status: "online", client_count: 5, ports: [] },
+          { mac: "aa:02", name: "Switch", model: "USW-24", model_name: "USW 24", type: "switch", ip: "192.168.1.2", version: "7.1.0", uptime: 43200, status: "online", client_count: 10, ports: [] },
+        ],
+        edges: [{ from_mac: "aa:01", to_mac: "aa:02", speed: 1000, poe: false, wireless: false, local_port: null, remote_port: null }],
+      },
     }),
   );
 }

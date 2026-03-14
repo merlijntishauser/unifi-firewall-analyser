@@ -88,13 +88,48 @@ class ZonePair(BaseModel):
 
 class TopologySvgResponse(BaseModel):
     svg: str
-    theme: str
     projection: str
 
 
-class TopologyTheme(BaseModel):
-    id: str
+class TopologyPort(BaseModel):
+    idx: int
     name: str
+    speed: int | None = None
+    up: bool = False
+    poe: bool = False
+    poe_power: float | None = None
+    connected_device: str | None = None
+    connected_mac: str | None = None
+    native_vlan: int | None = None
+
+
+class TopologyDevice(BaseModel):
+    mac: str
+    name: str
+    model: str
+    model_name: str
+    type: str
+    ip: str
+    version: str
+    uptime: int = 0
+    status: str = "unknown"
+    client_count: int = 0
+    ports: list[TopologyPort] = []
+
+
+class TopologyEdge(BaseModel):
+    from_mac: str
+    to_mac: str
+    local_port: int | None = None
+    remote_port: int | None = None
+    speed: int | None = None
+    poe: bool = False
+    wireless: bool = False
+
+
+class TopologyDevicesResponse(BaseModel):
+    devices: list[TopologyDevice]
+    edges: list[TopologyEdge]
 
 
 class AppLoginInput(BaseModel):

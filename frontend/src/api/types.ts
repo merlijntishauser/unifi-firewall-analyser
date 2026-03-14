@@ -166,11 +166,46 @@ export interface AppAuthStatus {
 
 export interface TopologySvgResponse {
   svg: string;
-  theme: string;
   projection: string;
 }
 
-export interface TopologyTheme {
-  id: string;
+export interface TopologyPort {
+  idx: number;
   name: string;
+  speed: number | null;
+  up: boolean;
+  poe: boolean;
+  poe_power: number | null;
+  connected_device: string | null;
+  connected_mac: string | null;
+  native_vlan: number | null;
+}
+
+export interface TopologyDevice {
+  mac: string;
+  name: string;
+  model: string;
+  model_name: string;
+  type: string;
+  ip: string;
+  version: string;
+  uptime: number;
+  status: string;
+  client_count: number;
+  ports: TopologyPort[];
+}
+
+export interface TopologyEdge {
+  from_mac: string;
+  to_mac: string;
+  local_port: number | null;
+  remote_port: number | null;
+  speed: number | null;
+  poe: boolean;
+  wireless: boolean;
+}
+
+export interface TopologyDevicesResponse {
+  devices: TopologyDevice[];
+  edges: TopologyEdge[];
 }

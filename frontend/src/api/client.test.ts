@@ -296,24 +296,24 @@ describe("api client", () => {
   });
 
   describe("getTopologySvg", () => {
-    it("calls correct URL with theme and projection params", async () => {
-      mockFetch.mockResolvedValue(mockOkResponse({ svg: "<svg/>", theme: "unifi", projection: "orthogonal" }));
-      const result = await api.getTopologySvg("unifi", "orthogonal");
+    it("calls correct URL with color_mode and projection params", async () => {
+      mockFetch.mockResolvedValue(mockOkResponse({ svg: "<svg/>", projection: "isometric" }));
+      const result = await api.getTopologySvg("dark", "isometric");
       expect(result.svg).toBe("<svg/>");
       expect(mockFetch).toHaveBeenCalledWith(
-        "/api/topology/svg?theme=unifi&projection=orthogonal",
+        "/api/topology/svg?color_mode=dark&projection=isometric",
         expect.objectContaining({}),
       );
     });
   });
 
-  describe("getTopologyThemes", () => {
-    it("fetches themes from correct endpoint", async () => {
-      const themes = [{ id: "unifi", name: "UniFi" }];
-      mockFetch.mockResolvedValue(mockOkResponse(themes));
-      const result = await api.getTopologyThemes();
-      expect(result).toEqual(themes);
-      expect(mockFetch).toHaveBeenCalledWith("/api/topology/themes", expect.objectContaining({}));
+  describe("getTopologyDevices", () => {
+    it("fetches devices from correct endpoint", async () => {
+      const data = { devices: [], edges: [] };
+      mockFetch.mockResolvedValue(mockOkResponse(data));
+      const result = await api.getTopologyDevices();
+      expect(result).toEqual(data);
+      expect(mockFetch).toHaveBeenCalledWith("/api/topology/devices", expect.objectContaining({}));
     });
   });
 });
