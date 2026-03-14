@@ -23,7 +23,7 @@ from app.routers.zone_filter import router as zone_filter_router
 from app.routers.zones import router as zones_router
 
 log = structlog.get_logger()
-startup_logger = logging.getLogger("uvicorn.error")
+startup_logger = logging.getLogger("app.startup")
 
 
 def _get_app_access_url() -> str:
