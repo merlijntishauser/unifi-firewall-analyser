@@ -107,13 +107,15 @@ class TestAppAuthEnabled:
         with patch("app.config.settings.app_password", secret):
             cookie_value, _ = create_session_cookie(secret, 86400)
             set_runtime_credentials(url="https://u", username="admin", password="pass")
-            resp = await client.get("/api/auth/status", cookies={COOKIE_NAME: cookie_value})
+            client.cookies.set(COOKIE_NAME, cookie_value)
+            resp = await client.get("/api/auth/status")
         assert resp.status_code == 200
 
     @pytest.mark.anyio
     async def test_invalid_cookie_returns_401(self, client: AsyncClient) -> None:
         with patch("app.config.settings.app_password", "secret123"):
-            resp = await client.get("/api/auth/status", cookies={COOKIE_NAME: "bogus:value"})
+            client.cookies.set(COOKIE_NAME, "bogus:value")
+            resp = await client.get("/api/auth/status")
         assert resp.status_code == 401
 
     @pytest.mark.anyio
@@ -131,7 +133,8 @@ class TestAppAuthEnabled:
             patch("app.config.settings.app_session_ttl", 0),
             patch("app.middleware.time.time", return_value=1000001.0),
         ):
-            resp = await client.get("/api/auth/status", cookies={COOKIE_NAME: cookie_value})
+            client.cookies.set(COOKIE_NAME, cookie_value)
+            resp = await client.get("/api/auth/status")
         assert resp.status_code == 401
 
     @pytest.mark.anyio
@@ -139,7 +142,8 @@ class TestAppAuthEnabled:
         # Create cookie with one secret, validate with another
         cookie_value, _ = create_session_cookie("old-secret", 86400)
         with patch("app.config.settings.app_password", "new-secret"):
-            resp = await client.get("/api/auth/status", cookies={COOKIE_NAME: cookie_value})
+            client.cookies.set(COOKIE_NAME, cookie_value)
+            resp = await client.get("/api/auth/status")
         assert resp.status_code == 401
 
 
@@ -182,7 +186,8 @@ class TestAppStatus:
         secret = "secret123"
         cookie_value, _ = create_session_cookie(secret, 86400)
         with patch("app.config.settings.app_password", secret):
-            resp = await client.get("/api/auth/app-status", cookies={COOKIE_NAME: cookie_value})
+            client.cookies.set(COOKIE_NAME, cookie_value)
+            resp = await client.get("/api/auth/app-status")
         assert resp.json() == {"required": True, "authenticated": True}
 
     @pytest.mark.anyio
@@ -194,7 +199,8 @@ class TestAppStatus:
     @pytest.mark.anyio
     async def test_required_not_authenticated_with_bad_cookie(self, client: AsyncClient) -> None:
         with patch("app.config.settings.app_password", "secret123"):
-            resp = await client.get("/api/auth/app-status", cookies={COOKIE_NAME: "invalid"})
+            client.cookies.set(COOKIE_NAME, "invalid")
+            resp = await client.get("/api/auth/app-status")
         assert resp.json() == {"required": True, "authenticated": False}
 
 
@@ -217,12 +223,13 @@ class TestAuthE2EFlow:
             assert session_cookie is not None
 
             # 3. Check status with cookie -- authenticated
-            status_resp2 = await client.get("/api/auth/app-status", cookies={COOKIE_NAME: session_cookie})
+            client.cookies.set(COOKIE_NAME, session_cookie)
+            status_resp2 = await client.get("/api/auth/app-status")
             assert status_resp2.json() == {"required": True, "authenticated": True}
 
             # 4. Access protected endpoint with cookie
             set_runtime_credentials(url="https://u", username="admin", password="pass")
-            auth_resp = await client.get("/api/auth/status", cookies={COOKIE_NAME: session_cookie})
+            auth_resp = await client.get("/api/auth/status")
             assert auth_resp.status_code == 200
             assert auth_resp.json()["configured"] is True
 
@@ -247,7 +254,8 @@ class TestAuthE2EFlow:
             cookie = good_resp.cookies.get(COOKIE_NAME)
 
             # Now accessible
-            ok_resp = await client.get("/api/auth/status", cookies={COOKIE_NAME: cookie})
+            client.cookies.set(COOKIE_NAME, cookie)
+            ok_resp = await client.get("/api/auth/status")
             assert ok_resp.status_code == 200
 
     @pytest.mark.anyio

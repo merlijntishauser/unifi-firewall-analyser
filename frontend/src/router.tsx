@@ -6,7 +6,7 @@ import TopologyPlaceholder from "./components/TopologyPlaceholder";
 import MetricsPlaceholder from "./components/MetricsPlaceholder";
 import HealthPlaceholder from "./components/HealthPlaceholder";
 
-export const routes: RouteObject[] = [
+const routes: RouteObject[] = [
   {
     element: <AppShell />,
     children: [

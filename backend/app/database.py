@@ -1,5 +1,6 @@
 """Database setup using SQLAlchemy and Alembic."""
 
+import gc
 import os
 from pathlib import Path
 
@@ -29,6 +30,8 @@ def init_db(db_path: Path = DEFAULT_DB_PATH) -> Engine:
     global _engine, _SessionFactory  # noqa: PLW0603
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
+    if _engine is not None:
+        _engine.dispose()
     _engine = create_engine(_make_url(db_path), echo=False)
     _SessionFactory = sessionmaker(bind=_engine)
 
@@ -37,15 +40,18 @@ def init_db(db_path: Path = DEFAULT_DB_PATH) -> Engine:
 
 
 def _run_migrations(db_path: Path) -> None:
-    """Run Alembic migrations programmatically."""
+    """Run Alembic migrations programmatically using the existing engine."""
     from alembic.config import Config
 
     from alembic import command
 
+    assert _engine is not None
     alembic_cfg = Config()
     alembic_cfg.set_main_option("script_location", str(Path(__file__).parent.parent / "alembic"))
     alembic_cfg.set_main_option("sqlalchemy.url", _make_url(db_path))
-    command.upgrade(alembic_cfg, "head")
+    with _engine.begin() as connection:
+        alembic_cfg.attributes["connection"] = connection
+        command.upgrade(alembic_cfg, "head")
 
 
 def get_engine() -> Engine:
@@ -69,6 +75,8 @@ def init_db_for_tests(db_path: Path) -> Engine:
     global _engine, _SessionFactory  # noqa: PLW0603
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
+    if _engine is not None:
+        _engine.dispose()
     _engine = create_engine(_make_url(db_path), echo=False)
     _SessionFactory = sessionmaker(bind=_engine)
 
@@ -83,3 +91,4 @@ def reset_engine() -> None:
         _engine.dispose()
     _engine = None
     _SessionFactory = None
+    gc.collect()
