@@ -2,7 +2,7 @@ import type { ZonePair } from "../api/types";
 
 export type ActionLabel = "Allow All" | "Allow Return" | "Block All" | "Mixed";
 
-export interface CellSummary {
+interface CellSummary {
   actionLabel: ActionLabel | null;
   userRuleCount: number;
   predefinedRuleCount: number;
