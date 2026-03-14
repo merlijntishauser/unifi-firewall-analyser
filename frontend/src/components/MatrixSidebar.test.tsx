@@ -51,9 +51,10 @@ describe("MatrixSidebar", () => {
       />,
     );
 
-    expect(screen.getByText("A / B grade")).toBeInTheDocument();
-    expect(screen.getByText("C grade")).toBeInTheDocument();
-    expect(screen.getByText("D / F grade")).toBeInTheDocument();
+    expect(screen.getByText("Allow All")).toBeInTheDocument();
+    expect(screen.getByText("Allow Return")).toBeInTheDocument();
+    expect(screen.getByText("Block All")).toBeInTheDocument();
+    expect(screen.getByText("Mixed")).toBeInTheDocument();
     expect(screen.getByText("No rules")).toBeInTheDocument();
   });
 

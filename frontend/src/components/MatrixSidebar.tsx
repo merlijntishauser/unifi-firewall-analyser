@@ -15,10 +15,11 @@ const GRADES = [
 ];
 
 const CELL_COLORS = [
-  { label: "A / B grade", bg: "bg-green-100 dark:bg-status-success/15 border-green-300 dark:border-status-success/30" },
-  { label: "C grade", bg: "bg-amber-100 dark:bg-status-warning/15 border-amber-300 dark:border-status-warning/30" },
-  { label: "D / F grade", bg: "bg-red-100 dark:bg-status-danger/15 border-red-300 dark:border-status-danger/30" },
-  { label: "No rules", bg: "bg-gray-100 dark:bg-noc-raised/50 border-gray-300 dark:border-noc-border" },
+  { label: "Allow All", bg: "bg-green-50 dark:bg-status-success/10 border-green-200 dark:border-status-success/25" },
+  { label: "Allow Return", bg: "bg-blue-50 dark:bg-ub-blue/10 border-blue-200 dark:border-ub-blue/25" },
+  { label: "Block All", bg: "bg-red-50 dark:bg-status-danger/10 border-red-200 dark:border-status-danger/25" },
+  { label: "Mixed", bg: "bg-amber-50 dark:bg-status-warning/10 border-amber-200 dark:border-status-warning/25" },
+  { label: "No rules", bg: "bg-gray-50 dark:bg-noc-raised/50 border-gray-200 dark:border-noc-border" },
 ];
 
 const UNIFI_DEFAULT_ZONE_NAMES = new Set(["external", "internal", "gateway", "vpn", "hotspot", "dmz", "guest"]);
