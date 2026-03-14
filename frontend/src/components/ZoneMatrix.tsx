@@ -21,8 +21,8 @@ export default function ZoneMatrix({ zones, zonePairs, onCellClick, onZoneClick 
       <div
         className="grid gap-1"
         style={{
-          gridTemplateColumns: `auto repeat(${size}, minmax(72px, 108px))`,
-          gridTemplateRows: `auto repeat(${size}, minmax(72px, 108px))`,
+          gridTemplateColumns: `auto repeat(${size}, minmax(80px, 120px))`,
+          gridTemplateRows: `auto repeat(${size}, minmax(56px, 80px))`,
         }}
       >
         {/* Top-left empty corner */}
