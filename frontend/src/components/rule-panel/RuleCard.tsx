@@ -49,7 +49,7 @@ function RuleWriteControls({
   );
 }
 
-export interface RuleCardProps {
+interface RuleCardProps {
   rule: Rule;
   idx: number;
   totalRules: number;

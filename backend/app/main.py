@@ -8,7 +8,7 @@ import structlog
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
-from unifi_topology.adapters.unifi_api import UnifiApiError
+from unifi_topology.adapters.unifi_api import UnifiApiError, UnifiAuthError
 
 from app.config import settings as app_settings
 from app.database import DEFAULT_DB_PATH, init_db
@@ -134,6 +134,12 @@ if not os.environ.get("FRONTEND_DIST_DIR"):
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+
+@app.exception_handler(UnifiAuthError)
+async def unifi_auth_error_handler(request: Request, exc: UnifiAuthError) -> JSONResponse:
+    log.warning("unifi_auth_error", error=str(exc))
+    return JSONResponse(status_code=401, content={"detail": str(exc)})
 
 
 @app.exception_handler(UnifiApiError)
