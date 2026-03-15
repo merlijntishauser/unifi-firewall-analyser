@@ -72,9 +72,11 @@ test.describe("health module", () => {
     await page.getByRole("button", { name: "Analyze Site Health" }).click();
     await expect(page.getByText("IoT zone broad egress")).toBeVisible();
 
-    // Click the finding -- should navigate to firewall with pair param
+    // Click the finding -- should deep-link to the firewall graph view
     await page.getByText("IoT zone broad egress").click();
-    await expect(page).toHaveURL(/\/firewall\?pair=/);
+    await expect(page).toHaveURL(/\/firewall/);
+    // Deep-link param is consumed and URL cleaned, but graph view should open
+    await expect(page.getByRole("button", { name: "Back to matrix" })).toBeVisible();
   });
 
   test("auto-refresh label is shown", async ({ page }) => {
