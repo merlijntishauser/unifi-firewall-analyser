@@ -60,6 +60,7 @@ export default function PassphraseScreen({ onAuthenticated }: PassphraseScreenPr
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Application password"
             className={inputClass}
+            data-1p-ignore
           />
         </div>
 

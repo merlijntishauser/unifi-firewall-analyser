@@ -137,7 +137,7 @@ function ConnectionPane() {
 
       <div>
         <label htmlFor="conn-password" className="block text-sm font-medium text-gray-700 dark:text-noc-text-secondary mb-1">Password</label>
-        <input id="conn-password" type="password" value={form.password} onChange={e => dispatch({ password: e.target.value })} className={INPUT_CLASS} />
+        <input id="conn-password" type="password" value={form.password} onChange={e => dispatch({ password: e.target.value })} className={INPUT_CLASS} data-1p-ignore />
       </div>
 
       <div>
@@ -272,6 +272,7 @@ function ProviderFields({ selectedPresetId, presets, baseUrl, apiKey, model, pro
             onChange={e => dispatch({ apiKey: e.target.value })}
             placeholder={keySource === "env" ? "Loaded from environment" : hasKey ? "Key configured \u2014 leave blank to keep" : "Enter your API key"}
             className={INPUT_CLASS}
+            data-1p-ignore
           />
         )}
       </div>

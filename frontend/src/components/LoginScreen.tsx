@@ -115,6 +115,7 @@ export default function LoginScreen({ onLoggedIn }: LoginScreenProps) {
             value={password}
             onChange={(e) => dispatch({ password: e.target.value })}
             className={inputClass}
+            data-1p-ignore
           />
         </div>
 
