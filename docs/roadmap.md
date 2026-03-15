@@ -13,6 +13,7 @@ Items shipped across all phases. Kept for historical context.
 - **Multi-module platform** -- rebrand to UniFi Homelab Ops, sidebar navigation, module routing, settings modal with tabbed panes
 - **Topology module** -- device map (ReactFlow), SVG diagram with pan/zoom/export, device detail panel with port table
 - **Metrics module** -- background poller, 24h SQLite retention, anomaly detection, notification drawer, device grid with sparklines
+- **Site Health AI** -- unified health dashboard with deterministic summary cards (firewall grades, topology status, metrics notifications) and AI-powered cross-domain analysis with severity-grouped finding cards, entity-level prompt context, caching, and deep-link navigation to affected modules
 
 ---
 
@@ -21,12 +22,6 @@ Items shipped across all phases. Kept for historical context.
 ### Prometheus metrics endpoint
 
 Add a `/metrics` endpoint exposing Prometheus counters and histograms for controller fetches, AI calls, cache hit/miss, and request latency. Optional -- zero-config if not scraped.
-
-### Site Health AI (Phase 4)
-
-Unified AI analysis across all three modules. Context assembly from firewall (grade distribution, findings), topology (single points of failure, VPN status), and metrics (anomaly notifications, trend outliers). Dedicated `/health` view with severity-grouped finding cards linking to the relevant module. Cached by composite key (firewall hash + topology hash + metrics timestamp). Requires all three modules producing data.
-
-Related design: [Multi-Module Platform Design](plans/2026-03-14-unifi-homelab-ops-design.md)
 
 ### Outbound URL validation and log redaction
 
