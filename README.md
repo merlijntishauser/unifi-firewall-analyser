@@ -93,6 +93,10 @@ To enable publishing, add these GitHub repository secrets:
 - `DOCKERHUB_USERNAME`
 - `DOCKERHUB_TOKEN`
 
+## Pending upstream changes
+
+- [ ] Add `model_name` field to `DeviceStats` in [unifi-topology](https://github.com/merlijntishauser/unifi-topology) so metrics cards show the friendly device name (e.g. "UniFi Cloud Gateway Fiber") instead of the model code (e.g. "UCGFIBER")
+
 ## License
 
 [MIT](LICENSE)
