@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAppContext } from "../hooks/useAppContext";
 import { useMetricsDevices, useMetricsHistory, useNotifications } from "../hooks/queries";
 import DeviceMetricCard from "./DeviceMetricCard";
@@ -8,6 +8,12 @@ export default function MetricsModule() {
   const { connectionInfo } = useAppContext();
   const authed = connectionInfo !== null;
   const [selectedMac, setSelectedMac] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onPopState = () => setSelectedMac(null);
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   const devicesQuery = useMetricsDevices(authed);
   const historyQuery = useMetricsHistory(selectedMac, !!selectedMac && authed);
@@ -58,7 +64,10 @@ export default function MetricsModule() {
                   <DeviceMetricCard
                     key={device.mac}
                     device={device}
-                    onClick={() => setSelectedMac(device.mac)}
+                    onClick={() => {
+                      setSelectedMac(device.mac);
+                      window.history.pushState({ view: "detail" }, "");
+                    }}
                   />
                 ))}
               </div>
