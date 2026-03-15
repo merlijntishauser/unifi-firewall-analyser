@@ -18,6 +18,7 @@ from app.logging import configure_logging
 from app.middleware import AccessLogMiddleware, AppAuthMiddleware
 from app.routers.analyze import router as analyze_router
 from app.routers.auth import router as auth_router
+from app.routers.health import router as health_router
 from app.routers.metrics import router as metrics_router
 from app.routers.rules import router as rules_router
 from app.routers.settings import router as settings_router
@@ -168,6 +169,9 @@ app.include_router(topology_router, prefix="/api/topology")
 
 # Metrics module
 app.include_router(metrics_router, prefix="/api/metrics")
+
+# Health module
+app.include_router(health_router, prefix="/api/health")
 
 # Shared (cross-module)
 app.include_router(auth_router)

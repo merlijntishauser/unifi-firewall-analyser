@@ -154,6 +154,53 @@ class TestGetTopologyDevices:
             result = get_topology_devices(MOCK_CONFIG)
         assert result.devices[0].status == "offline"
 
+    def test_device_with_ports_and_lldp(self) -> None:
+        mock_port = type("Port", (), {
+            "port_idx": 1, "name": "Port 1", "ifname": "eth0",
+            "speed": 1000, "up": True, "port_poe": True,
+            "poe_power": 15.2, "poe_good": True, "native_vlan": 1,
+        })()
+        mock_port_no_idx = type("Port", (), {"port_idx": None, "name": "Null", "ifname": "lo"})()
+        mock_lldp = type("Lldp", (), {"local_port_idx": 1, "chassis_id": "aa:bb:cc:dd:ee:02"})()
+        mock_lldp_other = type("Lldp", (), {"local_port_idx": 99, "chassis_id": "ff:ff:ff:ff:ff:ff"})()
+        device_with_ports = type("Device", (), {
+            "mac": "aa:bb:cc:dd:ee:01", "name": "Gateway",
+            "model": "UDM-Pro", "model_name": "UniFi Dream Machine Pro",
+            "type": "gateway", "ip": "192.168.1.1", "version": "4.0.6",
+            "port_table": [mock_port, mock_port_no_idx], "poe_ports": {},
+            "lldp_info": [mock_lldp_other, mock_lldp],
+            "uplink": None, "last_uplink": None,
+            "in_gateway_mode": None, "network_table": [],
+        })()
+        with (
+            patch("app.services.topology.fetch_devices", return_value=MOCK_RAW_DEVICES),
+            patch("app.services.topology.normalize_devices", return_value=[device_with_ports, MOCK_DEVICES[1]]),
+            patch("app.services.topology.build_topology", return_value=MOCK_TOPOLOGY),
+        ):
+            result = get_topology_devices(MOCK_CONFIG)
+        gw = result.devices[0]
+        assert len(gw.ports) == 1  # null port_idx is skipped
+        assert gw.ports[0].idx == 1
+        assert gw.ports[0].connected_mac == "aa:bb:cc:dd:ee:02"
+        assert gw.ports[0].connected_device == "Switch"
+        assert gw.ports[0].poe_power == 15.2
+
+    def test_edge_with_unknown_device_skipped(self) -> None:
+        mock_edge = type("Edge", (), {
+            "left": "Unknown Device", "right": "Switch",
+            "speed": 1000, "poe": False, "wireless": False,
+            "label": None, "channel": None, "vlans": (), "active_vlans": (),
+            "is_trunk": False, "connection": None,
+        })()
+        mock_topo = type("TopologyResult", (), {"tree_edges": [mock_edge], "raw_edges": []})()
+        with (
+            patch("app.services.topology.fetch_devices", return_value=MOCK_RAW_DEVICES),
+            patch("app.services.topology.normalize_devices", return_value=MOCK_DEVICES),
+            patch("app.services.topology.build_topology", return_value=mock_topo),
+        ):
+            result = get_topology_devices(MOCK_CONFIG)
+        assert len(result.edges) == 0
+
     def test_returns_edges(self) -> None:
         mock_edge = type("Edge", (), {
             "left": "Gateway", "right": "Switch",

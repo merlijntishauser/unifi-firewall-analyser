@@ -13,6 +13,7 @@ export const queryKeys = {
   topologyDevices: ["topology-devices"] as const,
   metricsDevices: ["metrics-devices"] as const,
   metricsHistory: (mac: string) => ["metrics-history", mac] as const,
+  healthSummary: ["health-summary"] as const,
   notifications: ["notifications"] as const,
 };
 
@@ -115,6 +116,16 @@ export function useNotifications(enabled: boolean) {
 }
 /* v8 ignore stop */
 
+export function useHealthSummary(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.healthSummary,
+    queryFn: api.getHealthSummary,
+    enabled,
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+  });
+}
+
 // --- Mutations ---
 
 export function useAppLogin() {
@@ -196,6 +207,12 @@ export function useSimulate() {
 export function useAnalyzeWithAi() {
   return useMutation({
     mutationFn: (req: AiAnalyzeRequest) => api.analyzeWithAi(req),
+  });
+}
+
+export function useHealthAnalysis() {
+  return useMutation({
+    mutationFn: () => api.analyzeHealth(),
   });
 }
 

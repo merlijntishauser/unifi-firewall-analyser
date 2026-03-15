@@ -4,7 +4,7 @@ import AppShell from "./components/AppShell";
 import FirewallModule from "./components/FirewallModule";
 import TopologyModule from "./components/TopologyModule";
 import MetricsModule from "./components/MetricsModule";
-import HealthPlaceholder from "./components/HealthPlaceholder";
+import HealthModule from "./components/HealthModule";
 
 const routes: RouteObject[] = [
   {
@@ -14,7 +14,7 @@ const routes: RouteObject[] = [
       { path: "firewall", element: <FirewallModule /> },
       { path: "topology", element: <TopologyModule /> },
       { path: "metrics", element: <MetricsModule /> },
-      { path: "health", element: <HealthPlaceholder /> },
+      { path: "health", element: <HealthModule /> },
     ],
   },
 ];

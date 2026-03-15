@@ -182,6 +182,49 @@ class Notification(BaseModel):
     dismissed: bool = False
 
 
+class HealthFinding(BaseModel):
+    severity: str  # "critical", "high", "medium", "low"
+    title: str
+    description: str
+    affected_module: str = ""  # "firewall", "topology", "metrics"
+    affected_entity_id: str = ""
+    recommended_action: str = ""
+    confidence: str = ""  # "high", "medium", "low"
+
+
+class HealthAnalysisResult(BaseModel):
+    status: str  # "ok" or "error"
+    findings: list[HealthFinding] = []
+    cached: bool = False
+    analyzed_at: str | None = None
+    message: str | None = None
+
+
+class FirewallSummary(BaseModel):
+    zone_pair_count: int
+    grade_distribution: dict[str, int]
+    finding_count_by_severity: dict[str, int]
+    uncovered_pairs: int
+
+
+class TopologySummary(BaseModel):
+    device_count_by_type: dict[str, int]
+    offline_count: int
+    firmware_mismatches: int
+
+
+class MetricsSummary(BaseModel):
+    active_notifications_by_severity: dict[str, int]
+    high_resource_devices: int
+    recent_reboots: int
+
+
+class HealthSummaryResponse(BaseModel):
+    firewall: FirewallSummary
+    topology: TopologySummary
+    metrics: MetricsSummary
+
+
 class AppLoginInput(BaseModel):
     password: str
 

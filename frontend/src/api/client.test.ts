@@ -360,4 +360,27 @@ describe("api client", () => {
       );
     });
   });
+
+  describe("getHealthSummary", () => {
+    it("fetches health summary from correct endpoint", async () => {
+      const data = { firewall: {}, topology: {}, metrics: {} };
+      mockFetch.mockResolvedValue(mockOkResponse(data));
+      const result = await api.getHealthSummary();
+      expect(result).toEqual(data);
+      expect(mockFetch).toHaveBeenCalledWith("/api/health/summary", expect.objectContaining({}));
+    });
+  });
+
+  describe("analyzeHealth", () => {
+    it("sends POST to analyze endpoint", async () => {
+      const data = { status: "ok", findings: [], cached: false };
+      mockFetch.mockResolvedValue(mockOkResponse(data));
+      const result = await api.analyzeHealth();
+      expect(result).toEqual(data);
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/health/analyze",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+  });
 });

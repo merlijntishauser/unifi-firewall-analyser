@@ -116,7 +116,7 @@ class TestCacheHit:
         )
         _save_cache(cache_key, "LAN->WAN", SAMPLE_FINDINGS_RAW)
 
-        with patch("app.services.ai_analyzer.httpx") as mock_httpx:
+        with patch("app.services._ai_provider.httpx") as mock_httpx:
             result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN")
             mock_httpx.post.assert_not_called()
 
@@ -138,7 +138,7 @@ class TestOpenAIProviderCall:
         }
         mock_response.raise_for_status = MagicMock()
 
-        with patch("app.services.ai_analyzer.httpx.post", return_value=mock_response):
+        with patch("app.services._ai_provider.httpx.post", return_value=mock_response):
             result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN")
 
         assert result.status == "ok"
@@ -163,7 +163,7 @@ class TestAnthropicProviderCall:
         }
         mock_response.raise_for_status = MagicMock()
 
-        with patch("app.services.ai_analyzer.httpx.post", return_value=mock_response) as mock_post:
+        with patch("app.services._ai_provider.httpx.post", return_value=mock_response) as mock_post:
             result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN")
 
         assert result.status == "ok"
@@ -185,7 +185,7 @@ class TestInvalidJsonFromLLM:
         }
         mock_response.raise_for_status = MagicMock()
 
-        with patch("app.services.ai_analyzer.httpx.post", return_value=mock_response):
+        with patch("app.services._ai_provider.httpx.post", return_value=mock_response):
             result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN")
 
         assert result.status == "error"
@@ -201,7 +201,7 @@ class TestHTTPErrorReturnsError:
         mock_response = MagicMock(status_code=500)
         mock_response.text = "Internal Server Error"
         exc = httpx.HTTPStatusError("500", response=mock_response, request=MagicMock())
-        with patch("app.services.ai_analyzer.httpx.post", side_effect=exc):
+        with patch("app.services._ai_provider.httpx.post", side_effect=exc):
             result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN")
 
         assert result.status == "error"
@@ -211,7 +211,7 @@ class TestHTTPErrorReturnsError:
     async def test_timeout_returns_error_status(self) -> None:
         save_ai_config("http://test-api.com/v1", "test-key", "test-model", "openai")
 
-        with patch("app.services.ai_analyzer.httpx.post", side_effect=httpx.TimeoutException("timed out")):
+        with patch("app.services._ai_provider.httpx.post", side_effect=httpx.TimeoutException("timed out")):
             result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN")
 
         assert result.status == "error"
@@ -221,7 +221,7 @@ class TestHTTPErrorReturnsError:
     async def test_connection_error_returns_error_status(self) -> None:
         save_ai_config("http://test-api.com/v1", "test-key", "test-model", "openai")
 
-        with patch("app.services.ai_analyzer.httpx.post", side_effect=httpx.ConnectError("refused")):
+        with patch("app.services._ai_provider.httpx.post", side_effect=httpx.ConnectError("refused")):
             result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN")
 
         assert result.status == "error"
@@ -231,7 +231,7 @@ class TestHTTPErrorReturnsError:
     async def test_unexpected_error_returns_error_status(self) -> None:
         save_ai_config("http://test-api.com/v1", "test-key", "test-model", "openai")
 
-        with patch("app.services.ai_analyzer.httpx.post", side_effect=RuntimeError("unexpected")):
+        with patch("app.services._ai_provider.httpx.post", side_effect=RuntimeError("unexpected")):
             result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN")
 
         assert result.status == "error"
@@ -249,7 +249,7 @@ class TestResultsCachedAfterCall:
         }
         mock_response.raise_for_status = MagicMock()
 
-        with patch("app.services.ai_analyzer.httpx.post", return_value=mock_response):
+        with patch("app.services._ai_provider.httpx.post", return_value=mock_response):
             result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN")
 
         assert result.status == "ok"
@@ -285,7 +285,7 @@ class TestFindingsHaveSourceAI:
         }
         mock_response.raise_for_status = MagicMock()
 
-        with patch("app.services.ai_analyzer.httpx.post", return_value=mock_response):
+        with patch("app.services._ai_provider.httpx.post", return_value=mock_response):
             result = await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN")
 
         for finding in result.findings:
@@ -508,7 +508,7 @@ class TestStaticFindingsPassedToAI:
 
         static = [Finding(id="f1", severity="high", title="Test finding", description="desc")]
 
-        with patch("app.services.ai_analyzer.httpx.post", return_value=mock_response) as mock_post:
+        with patch("app.services._ai_provider.httpx.post", return_value=mock_response) as mock_post:
             await analyze_with_ai(SAMPLE_RULES, "LAN", "WAN", static_findings=static)
 
         # Check that the user prompt contains the static finding

@@ -12,6 +12,7 @@ import structlog
 from app.database import get_session
 from app.models import AiAnalysisResult, FindingModel, Rule
 from app.models_db import AiAnalysisCacheRow
+from app.services._ai_provider import call_anthropic, call_openai
 from app.services.ai_settings import get_ai_analysis_settings, get_full_ai_config
 from app.services.analyzer import Finding
 
@@ -148,52 +149,6 @@ def _build_prompt(
     )
 
 
-def _call_openai(
-    base_url: str, api_key: str, model: str, system_prompt: str, user_prompt: str
-) -> str:
-    """Call an OpenAI-compatible API."""
-    url = f"{base_url}/chat/completions"
-    resp = httpx.post(
-        url,
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        json={
-            "model": model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            "temperature": 0.2,
-        },
-        timeout=60.0,
-    )
-    resp.raise_for_status()
-    return resp.json()["choices"][0]["message"]["content"]  # type: ignore[no-any-return]
-
-
-def _call_anthropic(
-    base_url: str, api_key: str, model: str, system_prompt: str, user_prompt: str
-) -> str:
-    """Call the Anthropic API."""
-    url = f"{base_url}/messages"
-    resp = httpx.post(
-        url,
-        headers={
-            "x-api-key": api_key,
-            "anthropic-version": "2023-06-01",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": model,
-            "max_tokens": 4096,
-            "system": system_prompt,
-            "messages": [{"role": "user", "content": user_prompt}],
-        },
-        timeout=60.0,
-    )
-    resp.raise_for_status()
-    return resp.json()["content"][0]["text"]  # type: ignore[no-any-return]
-
-
 def _parse_findings(response_text: str) -> list[dict]:  # type: ignore[type-arg]
     """Parse LLM response into findings list."""
     text = response_text.strip()
@@ -278,11 +233,11 @@ async def analyze_with_ai(
         provider_type = config.get("provider_type", "openai")
         log.debug("ai_api_call", provider=provider_type, model=model)
         if provider_type == "anthropic":
-            response_text = _call_anthropic(
+            response_text = call_anthropic(
                 config["base_url"], config["api_key"], model, system_prompt, user_prompt,
             )
         else:
-            response_text = _call_openai(
+            response_text = call_openai(
                 config["base_url"], config["api_key"], model, system_prompt, user_prompt,
             )
     except httpx.HTTPStatusError as exc:

@@ -8,6 +8,8 @@ import type {
   AppAuthStatus,
   AppNotification,
   AuthStatus,
+  HealthAnalysisResult,
+  HealthSummaryResponse,
   MetricsDevicesResponse,
   MetricsHistoryResponse,
   Rule,
@@ -120,4 +122,7 @@ export const api = {
   getNotifications: () => fetchJson<AppNotification[]>("/metrics/notifications"),
   dismissNotification: (id: number) =>
     fetchJson(`/metrics/notifications/${id}/dismiss`, { method: "POST" }),
+  getHealthSummary: () => fetchJson<HealthSummaryResponse>("/health/summary"),
+  analyzeHealth: () =>
+    fetchJson<HealthAnalysisResult>("/health/analyze", { method: "POST" }),
 };

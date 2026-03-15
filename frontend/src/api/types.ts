@@ -259,3 +259,46 @@ export interface AppNotification {
   resolved_at: string | null;
   dismissed: boolean;
 }
+
+export interface HealthFinding {
+  severity: string;
+  title: string;
+  description: string;
+  affected_module: string;
+  affected_entity_id: string;
+  recommended_action: string;
+  confidence: string;
+}
+
+export interface HealthAnalysisResult {
+  status: "ok" | "error";
+  findings: HealthFinding[];
+  cached: boolean;
+  analyzed_at: string | null;
+  message: string | null;
+}
+
+export interface FirewallSummary {
+  zone_pair_count: number;
+  grade_distribution: Record<string, number>;
+  finding_count_by_severity: Record<string, number>;
+  uncovered_pairs: number;
+}
+
+export interface TopologySummary {
+  device_count_by_type: Record<string, number>;
+  offline_count: number;
+  firmware_mismatches: number;
+}
+
+export interface MetricsSummary {
+  active_notifications_by_severity: Record<string, number>;
+  high_resource_devices: number;
+  recent_reboots: number;
+}
+
+export interface HealthSummaryResponse {
+  firewall: FirewallSummary;
+  topology: TopologySummary;
+  metrics: MetricsSummary;
+}

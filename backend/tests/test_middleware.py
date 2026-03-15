@@ -314,7 +314,10 @@ class TestAccessLogMiddleware:
         test_app = self._build_app()
         transport = ASGITransport(app=test_app)
         async with AsyncClient(transport=transport, base_url="http://test") as ac:
-            with patch("app.middleware.access_log") as mock_log:
+            with (
+                patch("app.middleware._is_enabled", return_value=False),
+                patch("app.middleware.access_log") as mock_log,
+            ):
                 resp = await ac.get("/api/health")
 
         assert resp.status_code == 200

@@ -43,6 +43,14 @@ class AiAnalysisSettingsRow(Base):
     site_profile: Mapped[str] = mapped_column(Text, nullable=False, default="homelab")
 
 
+class SiteHealthCacheRow(Base):
+    __tablename__ = "site_health_cache"
+
+    cache_key: Mapped[str] = mapped_column(Text, primary_key=True)
+    findings: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[str] = mapped_column(Text, nullable=False)
+
+
 class DeviceMetricRow(Base):
     __tablename__ = "device_metrics"
 
