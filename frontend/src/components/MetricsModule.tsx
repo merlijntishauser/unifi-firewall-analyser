@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppContext } from "../hooks/useAppContext";
 import { useMetricsDevices, useMetricsHistory, useNotifications } from "../hooks/queries";
 import DeviceMetricCard from "./DeviceMetricCard";
@@ -7,7 +7,17 @@ import MetricsDetailView from "./MetricsDetailView";
 export default function MetricsModule() {
   const { connectionInfo } = useAppContext();
   const authed = connectionInfo !== null;
-  const [selectedMac, setSelectedMac] = useState<string | null>(null);
+  const deepLinkDevice = useMemo(() => new URLSearchParams(window.location.search).get("device"), []);
+  const [selectedMac, setSelectedMac] = useState<string | null>(deepLinkDevice);
+  const deepLinked = useRef(!!deepLinkDevice);
+
+  useEffect(() => {
+    if (deepLinked.current) {
+      deepLinked.current = false;
+      window.history.replaceState({}, "", window.location.pathname);
+      window.history.pushState({ view: "detail" }, "");
+    }
+  }, []);
 
   useEffect(() => {
     const onPopState = () => setSelectedMac(null);

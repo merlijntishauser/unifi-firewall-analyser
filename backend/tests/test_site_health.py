@@ -14,7 +14,12 @@ from app.database import get_session, init_db_for_tests, reset_engine
 from app.models import (
     FirewallSummary,
     HealthSummaryResponse,
+    MetricsSnapshot,
     MetricsSummary,
+    Notification,
+    TopologyDevice,
+    TopologyDevicesResponse,
+    TopologyEdge,
     TopologySummary,
 )
 from app.models_db import SiteHealthCacheRow
@@ -22,14 +27,22 @@ from app.services.ai_settings import save_ai_config
 from app.services.site_health import (
     HEALTH_PROMPT_VERSION,
     _build_cache_key,
+    _build_firewall_detail,
     _build_health_prompt,
     _build_health_system_prompt,
+    _build_metrics_detail,
+    _build_topology_detail,
     _compute_firewall_summary,
     _compute_metrics_summary,
     _compute_topology_summary,
+    _firewall_summary_from_pairs,
+    _gather_health_context,
     _get_cached,
+    _HealthContext,
+    _metrics_summary_from_data,
     _parse_health_findings,
     _save_cache,
+    _topology_summary_from_data,
     analyze_site_health,
     get_health_summary,
 )
@@ -75,6 +88,155 @@ SAMPLE_HEALTH_FINDINGS_RAW = [
 ]
 
 
+def _make_mock_context() -> _HealthContext:
+    """Build a _HealthContext with representative test data."""
+    from app.models import FindingModel, Rule, ZonePair, ZonePairAnalysis
+
+    pairs = [
+        ZonePair(
+            source_zone_id="z1",
+            destination_zone_id="z2",
+            rules=[
+                Rule(
+                    id="r1",
+                    name="Allow All",
+                    enabled=True,
+                    action="ALLOW",
+                    source_zone_id="z1",
+                    destination_zone_id="z2",
+                    index=1,
+                )
+            ],
+            allow_count=1,
+            block_count=0,
+            analysis=ZonePairAnalysis(
+                score=60,
+                grade="D",
+                findings=[
+                    FindingModel(id="f1", severity="high", title="Broad allow", description="Allows everything"),
+                    FindingModel(id="f2", severity="medium", title="No logging", description="No connection logging"),
+                ],
+            ),
+        ),
+        ZonePair(
+            source_zone_id="z2",
+            destination_zone_id="z3",
+            rules=[
+                Rule(
+                    id="rp",
+                    name="Default",
+                    enabled=True,
+                    action="BLOCK",
+                    source_zone_id="z2",
+                    destination_zone_id="z3",
+                    index=9000,
+                    predefined=True,
+                )
+            ],
+            allow_count=0,
+            block_count=1,
+            analysis=ZonePairAnalysis(score=98, grade="A", findings=[]),
+        ),
+    ]
+    devices = [
+        TopologyDevice(
+            mac="aa:bb:cc:00:00:01",
+            name="GW",
+            model="UDM-Pro",
+            model_name="",
+            type="gateway",
+            ip="1.1.1.1",
+            version="4.0.6",
+            status="online",
+        ),
+        TopologyDevice(
+            mac="aa:bb:cc:00:00:02",
+            name="SW1",
+            model="USW-24",
+            model_name="",
+            type="switch",
+            ip="1.1.1.2",
+            version="7.1.0",
+            status="online",
+        ),
+        TopologyDevice(
+            mac="aa:bb:cc:00:00:03",
+            name="SW2",
+            model="USW-24",
+            model_name="",
+            type="switch",
+            ip="1.1.1.3",
+            version="7.0.9",
+            status="offline",
+        ),
+        TopologyDevice(
+            mac="aa:bb:cc:00:00:04",
+            name="AP1",
+            model="U6-LR",
+            model_name="",
+            type="ap",
+            ip="1.1.1.4",
+            version="6.5.0",
+            status="online",
+        ),
+    ]
+    edges = [
+        TopologyEdge(from_mac="aa:bb:cc:00:00:01", to_mac="aa:bb:cc:00:00:02"),
+        TopologyEdge(from_mac="aa:bb:cc:00:00:02", to_mac="aa:bb:cc:00:00:03"),
+        TopologyEdge(from_mac="aa:bb:cc:00:00:02", to_mac="aa:bb:cc:00:00:04"),
+    ]
+    topo = TopologyDevicesResponse(devices=devices, edges=edges)
+    snapshots = [
+        MetricsSnapshot(
+            mac="aa:bb:cc:00:00:01",
+            name="GW",
+            model="UDM-Pro",
+            type="gateway",
+            cpu=85,
+            mem=60,
+            uptime=172800,
+        ),
+        MetricsSnapshot(
+            mac="aa:bb:cc:00:00:02",
+            name="SW1",
+            model="USW-24",
+            type="switch",
+            cpu=10,
+            mem=90,
+            uptime=3600,
+            poe_consumption=45.2,
+        ),
+        MetricsSnapshot(
+            mac="aa:bb:cc:00:00:03",
+            name="SW2",
+            model="USW-24",
+            type="switch",
+            cpu=5,
+            mem=20,
+            uptime=172800,
+            poe_consumption=12.8,
+        ),
+    ]
+    notifications = [
+        Notification(
+            id=1,
+            device_mac="aa:bb:cc:00:00:01",
+            check_id="cpu",
+            severity="warning",
+            title="CPU",
+            message="High",
+            created_at="2026-03-15T10:00:00",
+        ),
+    ]
+    return _HealthContext(
+        zone_pairs=pairs,
+        zone_name_lookup={"z1": "Internal", "z2": "External", "z3": "IoT"},
+        topo_response=topo,
+        snapshots=snapshots,
+        notifications=notifications,
+    )
+
+
 @pytest.fixture(autouse=True)
 def _clear_ai_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("AI_BASE_URL", raising=False)
@@ -90,9 +252,8 @@ def _test_db(tmp_path: Path) -> Iterator[None]:
     reset_engine()
 
 
-class TestComputeFirewallSummary:
+class TestFirewallSummaryFromPairs:
     def test_computes_from_zone_pairs(self) -> None:
-        from app.config import UnifiCredentials
         from app.models import FindingModel, Rule, ZonePair, ZonePairAnalysis
 
         pairs = [
@@ -115,9 +276,7 @@ class TestComputeFirewallSummary:
                 analysis=ZonePairAnalysis(
                     score=95,
                     grade="A",
-                    findings=[
-                        FindingModel(id="f1", severity="low", title="Minor", description="d"),
-                    ],
+                    findings=[FindingModel(id="f1", severity="low", title="Minor", description="d")],
                 ),
             ),
             ZonePair(
@@ -140,17 +299,14 @@ class TestComputeFirewallSummary:
                 analysis=ZonePairAnalysis(score=98, grade="A", findings=[]),
             ),
         ]
-        creds = UnifiCredentials(url="https://x", username="u", password="p")
-        with patch("app.services.site_health.get_zone_pairs", return_value=pairs):
-            result = _compute_firewall_summary(creds)
+        result = _firewall_summary_from_pairs(pairs)
 
         assert result.zone_pair_count == 2
         assert result.grade_distribution == {"A": 2}
         assert result.finding_count_by_severity == {"low": 1}
-        assert result.uncovered_pairs == 1  # second pair has only predefined rules
+        assert result.uncovered_pairs == 1
 
     def test_handles_zone_pair_without_analysis(self) -> None:
-        from app.config import UnifiCredentials
         from app.models import Rule, ZonePair
 
         pairs = [
@@ -173,20 +329,15 @@ class TestComputeFirewallSummary:
                 analysis=None,
             ),
         ]
-        creds = UnifiCredentials(url="https://x", username="u", password="p")
-        with patch("app.services.site_health.get_zone_pairs", return_value=pairs):
-            result = _compute_firewall_summary(creds)
+        result = _firewall_summary_from_pairs(pairs)
 
         assert result.zone_pair_count == 1
         assert result.grade_distribution == {}
         assert result.finding_count_by_severity == {}
 
 
-class TestComputeTopologySummary:
+class TestTopologySummaryFromData:
     def test_computes_from_devices(self) -> None:
-        from app.config import UnifiCredentials
-        from app.models import TopologyDevice, TopologyDevicesResponse
-
         devices = [
             TopologyDevice(
                 mac="a1",
@@ -220,19 +371,15 @@ class TestComputeTopologySummary:
             ),
         ]
         topo = TopologyDevicesResponse(devices=devices, edges=[])
-        creds = UnifiCredentials(url="https://x", username="u", password="p")
-        with patch("app.services.site_health.get_topology_devices", return_value=topo):
-            result = _compute_topology_summary(creds)
+        result = _topology_summary_from_data(topo)
 
         assert result.device_count_by_type == {"gateway": 1, "switch": 2}
         assert result.offline_count == 1
-        assert result.firmware_mismatches == 1  # USW-24 has two different versions
+        assert result.firmware_mismatches == 1
 
 
-class TestComputeMetricsSummary:
+class TestMetricsSummaryFromData:
     def test_computes_from_snapshots_and_notifications(self) -> None:
-        from app.models import MetricsSnapshot, Notification
-
         snapshots = [
             MetricsSnapshot(mac="a1", name="GW", model="UDM", type="gateway", cpu=85, mem=60, uptime=86400),
             MetricsSnapshot(mac="a2", name="SW", model="USW", type="switch", cpu=10, mem=90, uptime=3600),
@@ -258,15 +405,89 @@ class TestComputeMetricsSummary:
                 created_at="2026-03-15T10:00:00",
             ),
         ]
+        result = _metrics_summary_from_data(snapshots, notifications)
+
+        assert result.active_notifications_by_severity == {"warning": 1, "critical": 1}
+        assert result.high_resource_devices == 2
+        assert result.recent_reboots == 1
+
+
+class TestComputeFirewallSummary:
+    def test_delegates_to_pure_function(self) -> None:
+        from app.config import UnifiCredentials
+        from app.models import FindingModel, Rule, ZonePair, ZonePairAnalysis
+
+        pairs = [
+            ZonePair(
+                source_zone_id="z1",
+                destination_zone_id="z2",
+                rules=[
+                    Rule(
+                        id="r1",
+                        name="Allow",
+                        enabled=True,
+                        action="ALLOW",
+                        source_zone_id="z1",
+                        destination_zone_id="z2",
+                        index=1,
+                    )
+                ],
+                allow_count=1,
+                block_count=0,
+                analysis=ZonePairAnalysis(
+                    score=95,
+                    grade="A",
+                    findings=[FindingModel(id="f1", severity="low", title="Minor", description="d")],
+                ),
+            ),
+        ]
+        creds = UnifiCredentials(url="https://x", username="u", password="p")
+        with patch("app.services.site_health.get_zone_pairs", return_value=pairs):
+            result = _compute_firewall_summary(creds)
+
+        assert result.zone_pair_count == 1
+        assert result.grade_distribution == {"A": 1}
+
+
+class TestComputeTopologySummary:
+    def test_delegates_to_pure_function(self) -> None:
+        from app.config import UnifiCredentials
+
+        devices = [
+            TopologyDevice(
+                mac="a1",
+                name="GW",
+                model="UDM-Pro",
+                model_name="",
+                type="gateway",
+                ip="1.1.1.1",
+                version="4.0.6",
+                status="online",
+            ),
+        ]
+        topo = TopologyDevicesResponse(devices=devices, edges=[])
+        creds = UnifiCredentials(url="https://x", username="u", password="p")
+        with patch("app.services.site_health.get_topology_devices", return_value=topo):
+            result = _compute_topology_summary(creds)
+
+        assert result.device_count_by_type == {"gateway": 1}
+        assert result.offline_count == 0
+
+
+class TestComputeMetricsSummary:
+    def test_delegates_to_pure_function(self) -> None:
+        snapshots = [
+            MetricsSnapshot(mac="a1", name="GW", model="UDM", type="gateway", cpu=85, mem=60, uptime=86400),
+        ]
+        notifications: list[Notification] = []
         with (
             patch("app.services.site_health.get_latest_snapshots", return_value=snapshots),
             patch("app.services.site_health.get_notifications", return_value=notifications),
         ):
             result = _compute_metrics_summary()
 
-        assert result.active_notifications_by_severity == {"warning": 1, "critical": 1}
-        assert result.high_resource_devices == 2  # GW: cpu>80, SW: mem>85
-        assert result.recent_reboots == 1  # SW: uptime < 86400
+        assert result.high_resource_devices == 1
+        assert result.recent_reboots == 0
 
 
 class TestGetHealthSummary:
@@ -292,15 +513,154 @@ class TestGetHealthSummary:
         assert result.metrics == met
 
 
+class TestGatherHealthContext:
+    def test_fetches_all_data(self) -> None:
+        from app.config import UnifiCredentials
+        from app.models import Zone
+
+        creds = UnifiCredentials(url="https://x", username="u", password="p")
+        zones = [Zone(id="z1", name="Internal"), Zone(id="z2", name="External")]
+        topo = TopologyDevicesResponse(devices=[], edges=[])
+
+        with (
+            patch("app.services.site_health.get_zone_pairs", return_value=[]) as mock_zp,
+            patch("app.services.site_health.get_zones", return_value=zones) as mock_z,
+            patch("app.services.site_health.get_topology_devices", return_value=topo) as mock_td,
+            patch("app.services.site_health.get_latest_snapshots", return_value=[]) as mock_ls,
+            patch("app.services.site_health.get_notifications", return_value=[]) as mock_n,
+        ):
+            ctx = _gather_health_context(creds)
+
+        mock_zp.assert_called_once_with(creds)
+        mock_z.assert_called_once_with(creds)
+        mock_td.assert_called_once_with(creds)
+        mock_ls.assert_called_once()
+        mock_n.assert_called_once_with(include_resolved=False)
+        assert ctx.zone_name_lookup == {"z1": "Internal", "z2": "External"}
+
+
+class TestBuildFirewallDetail:
+    def test_includes_top_findings_and_uncovered(self) -> None:
+        ctx = _make_mock_context()
+        detail = _build_firewall_detail(ctx)
+
+        assert "Top findings:" in detail
+        assert "[high] Broad allow (Internal->External)" in detail
+        assert "[medium] No logging (Internal->External)" in detail
+        assert "Uncovered zone pairs:" in detail
+        assert "External->IoT" in detail
+
+    def test_empty_when_no_findings_or_uncovered(self) -> None:
+        ctx = _HealthContext()
+        detail = _build_firewall_detail(ctx)
+        assert detail == ""
+
+    def test_limits_to_three_findings(self) -> None:
+        from app.models import FindingModel, Rule, ZonePair, ZonePairAnalysis
+
+        findings = [FindingModel(id=f"f{i}", severity="high", title=f"Finding {i}", description="d") for i in range(5)]
+        pairs = [
+            ZonePair(
+                source_zone_id="z1",
+                destination_zone_id="z2",
+                rules=[
+                    Rule(
+                        id="r1",
+                        name="R",
+                        enabled=True,
+                        action="ALLOW",
+                        source_zone_id="z1",
+                        destination_zone_id="z2",
+                        index=1,
+                    )
+                ],
+                allow_count=1,
+                block_count=0,
+                analysis=ZonePairAnalysis(score=50, grade="F", findings=findings),
+            ),
+        ]
+        ctx = _HealthContext(zone_pairs=pairs, zone_name_lookup={"z1": "A", "z2": "B"})
+        detail = _build_firewall_detail(ctx)
+        # Count occurrences of "[high]" -- should be exactly 3
+        assert detail.count("[high]") == 3
+
+
+class TestBuildTopologyDetail:
+    def test_includes_offline_firmware_and_single_uplink(self) -> None:
+        ctx = _make_mock_context()
+        detail = _build_topology_detail(ctx)
+
+        assert "Offline devices: SW2" in detail
+        assert "Firmware versions:" in detail
+        assert "USW-24: 7.0.9, 7.1.0" in detail
+        # AP1 has exactly 1 edge (to SW1) and is not a gateway
+        assert "Single-uplink devices" in detail
+        assert "AP1" in detail
+        # GW has 1 edge but is a gateway, so should NOT appear
+        assert "GW" not in detail.split("Single-uplink")[1]
+
+    def test_empty_when_no_devices(self) -> None:
+        ctx = _HealthContext()
+        detail = _build_topology_detail(ctx)
+        assert detail == ""
+
+
+class TestBuildMetricsDetail:
+    def test_includes_high_resource_rebooted_and_poe(self) -> None:
+        ctx = _make_mock_context()
+        detail = _build_metrics_detail(ctx)
+
+        assert "High-resource devices:" in detail
+        assert "GW (CPU 85%, MEM 60%)" in detail
+        assert "SW1" in detail  # mem>85
+        assert "Recently rebooted (<24h): SW1" in detail
+        assert "PoE consumption:" in detail
+        assert "SW1: 45.2W" in detail
+        assert "SW2: 12.8W" in detail
+
+    def test_empty_when_no_anomalies(self) -> None:
+        snapshots = [
+            MetricsSnapshot(mac="a1", name="Normal", model="X", type="switch", cpu=10, mem=20, uptime=172800),
+        ]
+        ctx = _HealthContext(snapshots=snapshots)
+        detail = _build_metrics_detail(ctx)
+        assert detail == ""
+
+
 class TestBuildHealthPrompt:
-    def test_includes_all_sections(self) -> None:
+    def test_includes_all_sections_without_context(self) -> None:
         prompt = _build_health_prompt(MOCK_SUMMARY)
         assert "FIREWALL:" in prompt
         assert "Zone pairs: 5" in prompt
         assert "TOPOLOGY:" in prompt
         assert "gateway: 1" in prompt
         assert "METRICS:" in prompt
-        assert "high_resource_devices" not in prompt  # should be human-readable
+        assert "high_resource_devices" not in prompt
+        assert HEALTH_PROMPT_VERSION in prompt
+
+    def test_includes_entity_details_with_context(self) -> None:
+        ctx = _make_mock_context()
+        summary = HealthSummaryResponse(
+            firewall=_firewall_summary_from_pairs(ctx.zone_pairs),
+            topology=_topology_summary_from_data(ctx.topo_response),
+            metrics=_metrics_summary_from_data(ctx.snapshots, ctx.notifications),
+        )
+        prompt = _build_health_prompt(summary, ctx)
+
+        # Firewall details
+        assert "Top findings:" in prompt
+        assert "Uncovered zone pairs:" in prompt
+        # Topology details
+        assert "Offline devices: SW2" in prompt
+        assert "Firmware versions:" in prompt
+        assert "Single-uplink devices" in prompt
+        # Metrics details
+        assert "High-resource devices:" in prompt
+        assert "PoE consumption:" in prompt
+        # Still has aggregate sections
+        assert "FIREWALL:" in prompt
+        assert "TOPOLOGY:" in prompt
+        assert "METRICS:" in prompt
         assert HEALTH_PROMPT_VERSION in prompt
 
 
@@ -438,9 +798,15 @@ class TestAnalyzeSiteHealthCacheHit:
 
         save_ai_config("http://test-api.com/v1", "test-key", "test-model", "openai")
         creds = UnifiCredentials(url="https://x", username="u", password="p")
+        ctx = _make_mock_context()
 
-        with patch("app.services.site_health.get_health_summary", return_value=MOCK_SUMMARY):
-            cache_key = _build_cache_key(MOCK_SUMMARY, "test-model", "homelab")
+        with patch("app.services.site_health._gather_health_context", return_value=ctx):
+            summary = HealthSummaryResponse(
+                firewall=_firewall_summary_from_pairs(ctx.zone_pairs),
+                topology=_topology_summary_from_data(ctx.topo_response),
+                metrics=_metrics_summary_from_data(ctx.snapshots, ctx.notifications),
+            )
+            cache_key = _build_cache_key(summary, "test-model", "homelab")
             _save_cache(cache_key, SAMPLE_HEALTH_FINDINGS_RAW, "2026-03-15T12:00:00")
 
             with patch("app.services._ai_provider.httpx.post") as mock_post:
@@ -460,6 +826,7 @@ class TestAnalyzeSiteHealthCallsProvider:
 
         save_ai_config("http://test-api.com/v1", "test-key", "test-model", "openai")
         creds = UnifiCredentials(url="https://x", username="u", password="p")
+        ctx = _make_mock_context()
 
         mock_response = MagicMock()
         mock_response.json.return_value = {
@@ -468,7 +835,7 @@ class TestAnalyzeSiteHealthCallsProvider:
         mock_response.raise_for_status = MagicMock()
 
         with (
-            patch("app.services.site_health.get_health_summary", return_value=MOCK_SUMMARY),
+            patch("app.services.site_health._gather_health_context", return_value=ctx),
             patch("app.services._ai_provider.httpx.post", return_value=mock_response),
         ):
             result = await analyze_site_health(creds)
@@ -487,13 +854,14 @@ class TestAnalyzeSiteHealthAnthropicCall:
 
         save_ai_config("http://test-api.com/v1", "test-key", "test-model", "anthropic")
         creds = UnifiCredentials(url="https://x", username="u", password="p")
+        ctx = _make_mock_context()
 
         mock_response = MagicMock()
         mock_response.json.return_value = {"content": [{"text": json.dumps(SAMPLE_HEALTH_FINDINGS_RAW)}]}
         mock_response.raise_for_status = MagicMock()
 
         with (
-            patch("app.services.site_health.get_health_summary", return_value=MOCK_SUMMARY),
+            patch("app.services.site_health._gather_health_context", return_value=ctx),
             patch("app.services._ai_provider.httpx.post", return_value=mock_response) as mock_post,
         ):
             result = await analyze_site_health(creds)
@@ -511,13 +879,14 @@ class TestAnalyzeSiteHealthErrors:
 
         save_ai_config("http://test-api.com/v1", "test-key", "test-model", "openai")
         creds = UnifiCredentials(url="https://x", username="u", password="p")
+        ctx = _make_mock_context()
 
         mock_resp = MagicMock(status_code=500)
         mock_resp.text = "Internal Server Error"
         exc = httpx.HTTPStatusError("500", response=mock_resp, request=MagicMock())
 
         with (
-            patch("app.services.site_health.get_health_summary", return_value=MOCK_SUMMARY),
+            patch("app.services.site_health._gather_health_context", return_value=ctx),
             patch("app.services._ai_provider.httpx.post", side_effect=exc),
         ):
             result = await analyze_site_health(creds)
@@ -531,9 +900,10 @@ class TestAnalyzeSiteHealthErrors:
 
         save_ai_config("http://test-api.com/v1", "test-key", "test-model", "openai")
         creds = UnifiCredentials(url="https://x", username="u", password="p")
+        ctx = _make_mock_context()
 
         with (
-            patch("app.services.site_health.get_health_summary", return_value=MOCK_SUMMARY),
+            patch("app.services.site_health._gather_health_context", return_value=ctx),
             patch("app.services._ai_provider.httpx.post", side_effect=httpx.TimeoutException("timed out")),
         ):
             result = await analyze_site_health(creds)
@@ -547,9 +917,10 @@ class TestAnalyzeSiteHealthErrors:
 
         save_ai_config("http://test-api.com/v1", "test-key", "test-model", "openai")
         creds = UnifiCredentials(url="https://x", username="u", password="p")
+        ctx = _make_mock_context()
 
         with (
-            patch("app.services.site_health.get_health_summary", return_value=MOCK_SUMMARY),
+            patch("app.services.site_health._gather_health_context", return_value=ctx),
             patch("app.services._ai_provider.httpx.post", side_effect=httpx.ConnectError("refused")),
         ):
             result = await analyze_site_health(creds)
@@ -563,9 +934,10 @@ class TestAnalyzeSiteHealthErrors:
 
         save_ai_config("http://test-api.com/v1", "test-key", "test-model", "openai")
         creds = UnifiCredentials(url="https://x", username="u", password="p")
+        ctx = _make_mock_context()
 
         with (
-            patch("app.services.site_health.get_health_summary", return_value=MOCK_SUMMARY),
+            patch("app.services.site_health._gather_health_context", return_value=ctx),
             patch("app.services._ai_provider.httpx.post", side_effect=RuntimeError("unexpected")),
         ):
             result = await analyze_site_health(creds)
@@ -579,13 +951,14 @@ class TestAnalyzeSiteHealthErrors:
 
         save_ai_config("http://test-api.com/v1", "test-key", "test-model", "openai")
         creds = UnifiCredentials(url="https://x", username="u", password="p")
+        ctx = _make_mock_context()
 
         mock_response = MagicMock()
         mock_response.json.return_value = {"choices": [{"message": {"content": "not valid json at all"}}]}
         mock_response.raise_for_status = MagicMock()
 
         with (
-            patch("app.services.site_health.get_health_summary", return_value=MOCK_SUMMARY),
+            patch("app.services.site_health._gather_health_context", return_value=ctx),
             patch("app.services._ai_provider.httpx.post", return_value=mock_response),
         ):
             result = await analyze_site_health(creds)
@@ -601,6 +974,7 @@ class TestResultsCachedAfterCall:
 
         save_ai_config("http://test-api.com/v1", "test-key", "test-model", "openai")
         creds = UnifiCredentials(url="https://x", username="u", password="p")
+        ctx = _make_mock_context()
 
         mock_response = MagicMock()
         mock_response.json.return_value = {
@@ -609,14 +983,19 @@ class TestResultsCachedAfterCall:
         mock_response.raise_for_status = MagicMock()
 
         with (
-            patch("app.services.site_health.get_health_summary", return_value=MOCK_SUMMARY),
+            patch("app.services.site_health._gather_health_context", return_value=ctx),
             patch("app.services._ai_provider.httpx.post", return_value=mock_response),
         ):
             result = await analyze_site_health(creds)
 
         assert result.status == "ok"
 
-        cache_key = _build_cache_key(MOCK_SUMMARY, "test-model", "homelab")
+        summary = HealthSummaryResponse(
+            firewall=_firewall_summary_from_pairs(ctx.zone_pairs),
+            topology=_topology_summary_from_data(ctx.topo_response),
+            metrics=_metrics_summary_from_data(ctx.snapshots, ctx.notifications),
+        )
+        cache_key = _build_cache_key(summary, "test-model", "homelab")
         session = get_session()
         try:
             row = session.get(SiteHealthCacheRow, cache_key)

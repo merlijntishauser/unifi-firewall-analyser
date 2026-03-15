@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ZonePair } from "../api/types";
 import { useAppContext } from "../hooks/useAppContext";
 import MatrixSidebar from "./MatrixSidebar";
@@ -24,8 +24,25 @@ export default function FirewallModule() {
     zonePairs, hasHiddenZones, hasDisabledRules,
   } = ctx;
 
+  const deepLinkPair = useRef(new URLSearchParams(window.location.search).get("pair"));
   const [selectedPairKey, setSelectedPairKey] = useState<SelectedPairKey | null>(null);
   const [focusZoneIds, setFocusZoneIds] = useState<string[] | null>(null);
+
+  // Deep-link: ?pair=SourceName->DestName -- resolve once zone data is available
+  useEffect(() => {
+    if (!deepLinkPair.current || zones.length === 0 || zonePairs.length === 0) return;
+    const param = deepLinkPair.current;
+    deepLinkPair.current = null;
+    const [srcName, dstName] = param.split("->");
+    if (!srcName || !dstName) return;
+    const srcZone = zones.find((z) => z.name === srcName);
+    const dstZone = zones.find((z) => z.name === dstName);
+    if (!srcZone || !dstZone) return;
+    setFocusZoneIds([srcZone.id, dstZone.id]);
+    setSelectedPairKey({ sourceZoneId: srcZone.id, destZoneId: dstZone.id });
+    window.history.replaceState({}, "", window.location.pathname);
+    history.pushState({ view: "graph" }, "");
+  }, [zones, zonePairs]);
 
   // Derive selectedPair from zonePairs so it auto-syncs on refresh
   const selectedPair = useMemo(() => {

@@ -168,4 +168,13 @@ describe("MetricsModule", () => {
     renderModule();
     expect(screen.getByText("Failed to load devices")).toBeInTheDocument();
   });
+
+  it("deep-links to device from URL search param", () => {
+    window.history.replaceState({}, "", "?device=aa:01");
+    renderModule();
+    expect(screen.getByTestId("detail-view")).toBeInTheDocument();
+    expect(screen.getByText("Gateway")).toBeInTheDocument();
+    // URL should be cleaned
+    expect(window.location.search).toBe("");
+  });
 });

@@ -263,7 +263,7 @@ describe("HealthModule", () => {
     };
     renderModule();
     fireEvent.click(screen.getByText("IoT exposure"));
-    expect(mockNavigate).toHaveBeenCalledWith("/firewall");
+    expect(mockNavigate).toHaveBeenCalledWith("/firewall?pair=IoT-%3EExternal");
   });
 
   it("groups findings by severity", () => {

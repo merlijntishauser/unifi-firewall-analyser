@@ -267,6 +267,19 @@ describe("TopologyModule", () => {
     expect(screen.getByText("Failed to render topology")).toBeInTheDocument();
   });
 
+  it("deep-links to device from URL search param", () => {
+    window.history.replaceState({}, "", "?device=aa:bb:cc:dd:ee:01");
+    renderModule();
+    expect(screen.getByTestId("device-panel")).toBeInTheDocument();
+    expect(window.location.search).toBe("");
+  });
+
+  it("ignores deep-link when device not found", () => {
+    window.history.replaceState({}, "", "?device=nonexistent");
+    renderModule();
+    expect(screen.queryByTestId("device-panel")).not.toBeInTheDocument();
+  });
+
   it("returns null in DiagramContent when no data and not loading", () => {
     svgMock.data = undefined;
     svgMock.isLoading = false;

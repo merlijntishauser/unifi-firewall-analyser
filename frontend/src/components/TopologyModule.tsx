@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { TopologyDevice, TopologyDevicesResponse, TopologySvgResponse } from "../api/types";
 import { useAppContext } from "../hooks/useAppContext";
 import { useTopologySvg, useTopologyDevices } from "../hooks/queries";
@@ -85,10 +85,22 @@ export default function TopologyModule() {
   const [projection, setProjection] = useState<"orthogonal" | "isometric">(() =>
     readStorage("topologyProjection", "isometric") as "orthogonal" | "isometric",
   );
+  const deepLinkDevice = useRef(new URLSearchParams(window.location.search).get("device"));
   const [selectedDevice, setSelectedDevice] = useState<TopologyDevice | null>(null);
 
   const svgQuery = useTopologySvg(colorMode === "dark" ? "dark" : "light", projection, authed && subView === "diagram");
   const devicesQuery = useTopologyDevices(authed);
+
+  // Deep-link: ?device=mac -- resolve once device data is available
+  useEffect(() => {
+    if (!deepLinkDevice.current || !devicesQuery.data) return;
+    const mac = deepLinkDevice.current;
+    deepLinkDevice.current = null;
+    const device = devicesQuery.data.devices.find((d) => d.mac === mac);
+    if (!device) return;
+    setSelectedDevice(device);
+    window.history.replaceState({}, "", window.location.pathname);
+  }, [devicesQuery.data]);
 
   const handleSubViewChange = useCallback((view: "map" | "diagram") => {
     setSubView(view);

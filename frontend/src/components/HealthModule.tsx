@@ -140,10 +140,10 @@ const moduleBadge: Record<string, string> = {
   metrics: "bg-status-warning-dim text-status-warning",
 };
 
-function FindingCard({ finding, onNavigate }: { finding: HealthFinding; onNavigate: (module: string) => void }) {
+function FindingCard({ finding, onNavigate }: { finding: HealthFinding; onNavigate: (module: string, entityId: string) => void }) {
   return (
     <button
-      onClick={() => onNavigate(finding.affected_module)}
+      onClick={() => onNavigate(finding.affected_module, finding.affected_entity_id)}
       className="w-full text-left bg-white dark:bg-noc-surface rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-noc-raised transition-colors cursor-pointer"
     >
       <div className="flex items-center gap-2 mb-1.5">
@@ -180,7 +180,7 @@ function formatTimeAgo(isoString: string): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-function FindingsList({ findings, onNavigate }: { findings: HealthFinding[]; onNavigate: (module: string) => void }) {
+function FindingsList({ findings, onNavigate }: { findings: HealthFinding[]; onNavigate: (module: string, entityId: string) => void }) {
   return (
     <div className="space-y-4">
       {severityOrder.map((sev) => {
@@ -201,7 +201,7 @@ function FindingsList({ findings, onNavigate }: { findings: HealthFinding[]; onN
   );
 }
 
-function AnalysisResults({ analysis, onNavigate }: { analysis: HealthAnalysisResult; onNavigate: (module: string) => void }) {
+function AnalysisResults({ analysis, onNavigate }: { analysis: HealthAnalysisResult; onNavigate: (module: string, entityId: string) => void }) {
   if (analysis.status === "error") {
     return (
       <div className="bg-status-danger-dim rounded-lg p-4">
@@ -226,7 +226,7 @@ interface AnalysisSectionProps {
   analysis: HealthAnalysisResult | undefined;
   isPending: boolean;
   onAnalyze: () => void;
-  onNavigate: (module: string) => void;
+  onNavigate: (module: string, entityId: string) => void;
 }
 
 function AnalysisSection({ aiConfigured, analysis, isPending, onAnalyze, onNavigate }: AnalysisSectionProps) {
@@ -308,9 +308,16 @@ export default function HealthModule() {
   const summaryQuery = useHealthSummary(authed);
   const analyzeMutation = useHealthAnalysis();
 
-  const handleNavigate = (module: string) => {
-    if (["firewall", "topology", "metrics"].includes(module)) {
+  const handleNavigate = (module: string, entityId: string) => {
+    if (!["firewall", "topology", "metrics"].includes(module)) return;
+    if (!entityId) {
       navigate(`/${module}`);
+      return;
+    }
+    if (module === "firewall") {
+      navigate(`/${module}?pair=${encodeURIComponent(entityId)}`);
+    } else {
+      navigate(`/${module}?device=${encodeURIComponent(entityId)}`);
     }
   };
 

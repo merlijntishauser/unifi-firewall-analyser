@@ -1,8 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { QueryClientProvider } from "@tanstack/react-query";
 import type { ColorMode } from "@xyflow/react";
 import { AppContext, type AppContextValue } from "../hooks/useAppContext";
+import { createTestQueryClient } from "../test-utils";
 import FirewallModule from "./FirewallModule";
 import type { Zone, ZonePair } from "../api/types";
 
@@ -107,11 +109,13 @@ function makeContext(overrides?: Partial<AppContextValue>): AppContextValue {
 
 function renderModule(ctx?: Partial<AppContextValue>) {
   return render(
-    <AppContext.Provider value={makeContext(ctx)}>
-      <MemoryRouter>
-        <FirewallModule />
-      </MemoryRouter>
-    </AppContext.Provider>,
+    <QueryClientProvider client={createTestQueryClient()}>
+      <AppContext.Provider value={makeContext(ctx)}>
+        <MemoryRouter>
+          <FirewallModule />
+        </MemoryRouter>
+      </AppContext.Provider>
+    </QueryClientProvider>,
   );
 }
 
@@ -170,5 +174,26 @@ describe("FirewallModule", () => {
       expect(screen.getByTestId("react-flow")).toBeInTheDocument();
     });
     expect(screen.getByRole("button", { name: /back/i })).toBeInTheDocument();
+  });
+
+  it("deep-links to zone pair from URL search param", async () => {
+    window.history.replaceState({}, "", "?pair=External->Internal");
+    renderModule();
+    await waitFor(() => {
+      expect(screen.getByTestId("react-flow")).toBeInTheDocument();
+    });
+    expect(window.location.search).toBe("");
+  });
+
+  it("ignores deep-link with invalid zone names", () => {
+    window.history.replaceState({}, "", "?pair=Nonexistent->Zone");
+    renderModule();
+    expect(screen.getByTestId("zone-matrix")).toBeInTheDocument();
+  });
+
+  it("ignores deep-link with malformed pair param", () => {
+    window.history.replaceState({}, "", "?pair=no-arrow");
+    renderModule();
+    expect(screen.getByTestId("zone-matrix")).toBeInTheDocument();
   });
 });

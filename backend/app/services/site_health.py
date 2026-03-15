@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections import Counter
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 import httpx
@@ -17,19 +18,23 @@ from app.models import (
     HealthAnalysisResult,
     HealthFinding,
     HealthSummaryResponse,
+    MetricsSnapshot,
     MetricsSummary,
+    Notification,
+    TopologyDevicesResponse,
     TopologySummary,
+    ZonePair,
 )
 from app.models_db import SiteHealthCacheRow
 from app.services._ai_provider import call_anthropic, call_openai
 from app.services.ai_settings import get_ai_analysis_settings, get_full_ai_config
-from app.services.firewall import get_zone_pairs
+from app.services.firewall import get_zone_pairs, get_zones
 from app.services.metrics import get_latest_snapshots, get_notifications
 from app.services.topology import get_topology_devices
 
 log = structlog.get_logger()
 
-HEALTH_PROMPT_VERSION = "2026-03-15-v1"
+HEALTH_PROMPT_VERSION = "2026-03-15-v2"
 
 _SITE_PROFILE_CONTEXT = {
     "homelab": (
@@ -48,9 +53,21 @@ _SITE_PROFILE_CONTEXT = {
 }
 
 
-def _compute_firewall_summary(credentials: UnifiCredentials) -> FirewallSummary:
-    """Compute firewall summary from zone pairs."""
-    zone_pairs = get_zone_pairs(credentials)
+@dataclass
+class _HealthContext:
+    """Raw data collected once for both summary computation and prompt enrichment."""
+
+    zone_pairs: list[ZonePair] = field(default_factory=list)
+    zone_name_lookup: dict[str, str] = field(default_factory=dict)
+    topo_response: TopologyDevicesResponse = field(
+        default_factory=lambda: TopologyDevicesResponse(devices=[], edges=[])
+    )
+    snapshots: list[MetricsSnapshot] = field(default_factory=list)
+    notifications: list[Notification] = field(default_factory=list)
+
+
+def _firewall_summary_from_pairs(zone_pairs: list[ZonePair]) -> FirewallSummary:
+    """Compute firewall summary from pre-fetched zone pairs."""
     grade_dist: Counter[str] = Counter()
     severity_dist: Counter[str] = Counter()
     uncovered = 0
@@ -72,14 +89,13 @@ def _compute_firewall_summary(credentials: UnifiCredentials) -> FirewallSummary:
     )
 
 
-def _compute_topology_summary(credentials: UnifiCredentials) -> TopologySummary:
-    """Compute topology summary from devices."""
-    topo = get_topology_devices(credentials)
+def _topology_summary_from_data(topo_response: TopologyDevicesResponse) -> TopologySummary:
+    """Compute topology summary from pre-fetched topology response."""
     type_dist: Counter[str] = Counter()
     offline = 0
     versions_by_model: dict[str, set[str]] = {}
 
-    for d in topo.devices:
+    for d in topo_response.devices:
         type_dist[d.type] += 1
         if d.status != "online":
             offline += 1
@@ -94,11 +110,10 @@ def _compute_topology_summary(credentials: UnifiCredentials) -> TopologySummary:
     )
 
 
-def _compute_metrics_summary() -> MetricsSummary:
-    """Compute metrics summary from DB data."""
-    snapshots = get_latest_snapshots()
-    notifications = get_notifications(include_resolved=False)
-
+def _metrics_summary_from_data(
+    snapshots: list[MetricsSnapshot], notifications: list[Notification]
+) -> MetricsSummary:
+    """Compute metrics summary from pre-fetched snapshots and notifications."""
     severity_dist: Counter[str] = Counter()
     for n in notifications:
         severity_dist[n.severity] += 1
@@ -113,6 +128,25 @@ def _compute_metrics_summary() -> MetricsSummary:
     )
 
 
+def _compute_firewall_summary(credentials: UnifiCredentials) -> FirewallSummary:
+    """Compute firewall summary from zone pairs."""
+    zone_pairs = get_zone_pairs(credentials)
+    return _firewall_summary_from_pairs(zone_pairs)
+
+
+def _compute_topology_summary(credentials: UnifiCredentials) -> TopologySummary:
+    """Compute topology summary from devices."""
+    topo = get_topology_devices(credentials)
+    return _topology_summary_from_data(topo)
+
+
+def _compute_metrics_summary() -> MetricsSummary:
+    """Compute metrics summary from DB data."""
+    snapshots = get_latest_snapshots()
+    notifications = get_notifications(include_resolved=False)
+    return _metrics_summary_from_data(snapshots, notifications)
+
+
 def get_health_summary(credentials: UnifiCredentials) -> HealthSummaryResponse:
     """Gather health summary data from all modules."""
     firewall = _compute_firewall_summary(credentials)
@@ -121,6 +155,23 @@ def get_health_summary(credentials: UnifiCredentials) -> HealthSummaryResponse:
 
     log.info("health_summary_computed")
     return HealthSummaryResponse(firewall=firewall, topology=topology, metrics=metrics)
+
+
+def _gather_health_context(credentials: UnifiCredentials) -> _HealthContext:
+    """Fetch all raw data once for both summary and prompt construction."""
+    zone_pairs = get_zone_pairs(credentials)
+    zones = get_zones(credentials)
+    zone_name_lookup = {z.id: z.name for z in zones}
+    topo_response = get_topology_devices(credentials)
+    snapshots = get_latest_snapshots()
+    notifications = get_notifications(include_resolved=False)
+    return _HealthContext(
+        zone_pairs=zone_pairs,
+        zone_name_lookup=zone_name_lookup,
+        topo_response=topo_response,
+        snapshots=snapshots,
+        notifications=notifications,
+    )
 
 
 def _build_health_system_prompt(site_profile: str) -> str:
@@ -146,8 +197,105 @@ def _build_health_system_prompt(site_profile: str) -> str:
     )
 
 
-def _build_health_prompt(summary: HealthSummaryResponse) -> str:
-    """Build user prompt from summary data."""
+def _build_firewall_detail(ctx: _HealthContext) -> str:
+    """Build firewall entity-level detail lines for the prompt."""
+    lines: list[str] = []
+
+    # Top 3 highest-severity findings with zone pair names
+    severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+    all_findings: list[tuple[str, str, str]] = []  # (severity, title, zone_pair_name)
+    for zp in ctx.zone_pairs:
+        if not zp.analysis:
+            continue
+        src_name = ctx.zone_name_lookup.get(zp.source_zone_id, zp.source_zone_id)
+        dst_name = ctx.zone_name_lookup.get(zp.destination_zone_id, zp.destination_zone_id)
+        pair_label = f"{src_name}->{dst_name}"
+        for f in zp.analysis.findings:
+            all_findings.append((f.severity, f.title, pair_label))
+
+    all_findings.sort(key=lambda x: severity_order.get(x[0], 99))
+    top_findings = all_findings[:3]
+    if top_findings:
+        items = "; ".join(f"[{sev}] {title} ({pair})" for sev, title, pair in top_findings)
+        lines.append(f"- Top findings: {items}")
+
+    # Uncovered zone pairs with names
+    uncovered_names: list[str] = []
+    for zp in ctx.zone_pairs:
+        user_rules = [r for r in zp.rules if not r.predefined]
+        if not user_rules:
+            src_name = ctx.zone_name_lookup.get(zp.source_zone_id, zp.source_zone_id)
+            dst_name = ctx.zone_name_lookup.get(zp.destination_zone_id, zp.destination_zone_id)
+            uncovered_names.append(f"{src_name}->{dst_name}")
+    if uncovered_names:
+        lines.append(f"- Uncovered zone pairs: {', '.join(uncovered_names)}")
+
+    return "\n".join(lines)
+
+
+def _build_topology_detail(ctx: _HealthContext) -> str:
+    """Build topology entity-level detail lines for the prompt."""
+    lines: list[str] = []
+
+    # Offline device names
+    offline_names = [d.name for d in ctx.topo_response.devices if d.status != "online"]
+    if offline_names:
+        lines.append(f"- Offline devices: {', '.join(offline_names)}")
+
+    # Firmware version distribution (model -> versions)
+    versions_by_model: dict[str, set[str]] = {}
+    for d in ctx.topo_response.devices:
+        versions_by_model.setdefault(d.model, set()).add(d.version)
+    fw_items = [f"{model}: {', '.join(sorted(vs))}" for model, vs in sorted(versions_by_model.items())]
+    if fw_items:
+        lines.append(f"- Firmware versions: {'; '.join(fw_items)}")
+
+    # Single-uplink devices (from edges, excluding gateways)
+    edge_count_by_mac: Counter[str] = Counter()
+    for edge in ctx.topo_response.edges:
+        edge_count_by_mac[edge.from_mac] += 1
+        edge_count_by_mac[edge.to_mac] += 1
+    gateway_macs = {d.mac for d in ctx.topo_response.devices if d.type == "gateway"}
+    mac_to_name = {d.mac: d.name for d in ctx.topo_response.devices}
+    single_uplink = [
+        mac_to_name.get(mac, mac)
+        for mac, count in edge_count_by_mac.items()
+        if count == 1 and mac not in gateway_macs
+    ]
+    if single_uplink:
+        lines.append(f"- Single-uplink devices (no redundancy): {', '.join(sorted(single_uplink))}")
+
+    return "\n".join(lines)
+
+
+def _build_metrics_detail(ctx: _HealthContext) -> str:
+    """Build metrics entity-level detail lines for the prompt."""
+    lines: list[str] = []
+
+    # High-resource devices with values
+    high_res = [(s.name, s.cpu, s.mem) for s in ctx.snapshots if s.cpu > 80 or s.mem > 85]
+    if high_res:
+        items = ", ".join(f"{name} (CPU {cpu:.0f}%, MEM {mem:.0f}%)" for name, cpu, mem in high_res)
+        lines.append(f"- High-resource devices: {items}")
+
+    # Recently rebooted devices
+    rebooted = [s.name for s in ctx.snapshots if s.uptime < 86400]
+    if rebooted:
+        lines.append(f"- Recently rebooted (<24h): {', '.join(rebooted)}")
+
+    # PoE consumption per switch
+    poe_switches = [
+        (s.name, s.poe_consumption) for s in ctx.snapshots if s.poe_consumption is not None and s.poe_consumption > 0
+    ]
+    if poe_switches:
+        items = ", ".join(f"{name}: {poe:.1f}W" for name, poe in poe_switches)
+        lines.append(f"- PoE consumption: {items}")
+
+    return "\n".join(lines)
+
+
+def _build_health_prompt(summary: HealthSummaryResponse, ctx: _HealthContext | None = None) -> str:
+    """Build user prompt from summary data, enriched with entity details when context is available."""
     fw = summary.firewall
     topo = summary.topology
     met = summary.metrics
@@ -157,23 +305,43 @@ def _build_health_prompt(summary: HealthSummaryResponse) -> str:
     types = ", ".join(f"{t}: {c}" for t, c in sorted(topo.device_count_by_type.items()))
     notif_sev = ", ".join(f"{s}: {c}" for s, c in sorted(met.active_notifications_by_severity.items()))
 
-    return (
-        f"Site health summary:\n\n"
-        f"FIREWALL:\n"
-        f"- Zone pairs: {fw.zone_pair_count}\n"
-        f"- Grade distribution: {grades or 'none'}\n"
-        f"- Finding count by severity: {severities or 'none'}\n"
-        f"- Uncovered zone pairs (no user rules): {fw.uncovered_pairs}\n\n"
-        f"TOPOLOGY:\n"
-        f"- Devices by type: {types or 'none'}\n"
-        f"- Offline devices: {topo.offline_count}\n"
-        f"- Firmware mismatches (same model, different version): {topo.firmware_mismatches}\n\n"
-        f"METRICS:\n"
-        f"- Active notifications by severity: {notif_sev or 'none'}\n"
-        f"- Devices with high resource usage (CPU >80% or memory >85%): {met.high_resource_devices}\n"
-        f"- Devices rebooted in last 24h: {met.recent_reboots}\n\n"
-        f"Prompt version: {HEALTH_PROMPT_VERSION}"
-    )
+    sections: list[str] = [
+        "Site health summary:\n",
+        "FIREWALL:",
+        f"- Zone pairs: {fw.zone_pair_count}",
+        f"- Grade distribution: {grades or 'none'}",
+        f"- Finding count by severity: {severities or 'none'}",
+        f"- Uncovered zone pairs (no user rules): {fw.uncovered_pairs}",
+    ]
+    if ctx:
+        fw_detail = _build_firewall_detail(ctx)
+        if fw_detail:
+            sections.append(fw_detail)
+
+    sections.append("")
+    sections.append("TOPOLOGY:")
+    sections.append(f"- Devices by type: {types or 'none'}")
+    sections.append(f"- Offline devices: {topo.offline_count}")
+    sections.append(f"- Firmware mismatches (same model, different version): {topo.firmware_mismatches}")
+    if ctx:
+        topo_detail = _build_topology_detail(ctx)
+        if topo_detail:
+            sections.append(topo_detail)
+
+    sections.append("")
+    sections.append("METRICS:")
+    sections.append(f"- Active notifications by severity: {notif_sev or 'none'}")
+    sections.append(f"- Devices with high resource usage (CPU >80% or memory >85%): {met.high_resource_devices}")
+    sections.append(f"- Devices rebooted in last 24h: {met.recent_reboots}")
+    if ctx:
+        met_detail = _build_metrics_detail(ctx)
+        if met_detail:
+            sections.append(met_detail)
+
+    sections.append("")
+    sections.append(f"Prompt version: {HEALTH_PROMPT_VERSION}")
+
+    return "\n".join(sections)
 
 
 def _build_cache_key(summary: HealthSummaryResponse, model: str, site_profile: str) -> str:
@@ -276,7 +444,13 @@ async def analyze_site_health(credentials: UnifiCredentials) -> HealthAnalysisRe
     site_profile = analysis_settings["site_profile"]
     model = config["model"]
 
-    summary = get_health_summary(credentials)
+    ctx = _gather_health_context(credentials)
+    summary = HealthSummaryResponse(
+        firewall=_firewall_summary_from_pairs(ctx.zone_pairs),
+        topology=_topology_summary_from_data(ctx.topo_response),
+        metrics=_metrics_summary_from_data(ctx.snapshots, ctx.notifications),
+    )
+
     cache_key = _build_cache_key(summary, model, site_profile)
     log.debug("health_analysis_start", cache_key=cache_key[:12], site_profile=site_profile)
 
@@ -292,7 +466,7 @@ async def analyze_site_health(credentials: UnifiCredentials) -> HealthAnalysisRe
         )
 
     system_prompt = _build_health_system_prompt(site_profile)
-    user_prompt = _build_health_prompt(summary)
+    user_prompt = _build_health_prompt(summary, ctx)
 
     try:
         provider_type = config.get("provider_type", "openai")
