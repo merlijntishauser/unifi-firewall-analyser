@@ -91,7 +91,7 @@ def get_topology_devices(credentials: UnifiCredentials) -> TopologyDevicesRespon
     """Fetch devices and edges for the interactive topology map."""
     config = to_topology_config(credentials)
 
-    raw_devices: list[dict[str, Any]] = list(fetch_devices(config, site=credentials.site))  # type: ignore[arg-type]
+    raw_devices: list[dict[str, Any]] = list(fetch_devices(config, site=credentials.site, use_cache=False))  # type: ignore[arg-type]
     devices = normalize_devices(raw_devices)
     raw_lookup = _raw_device_lookup(raw_devices)
 
