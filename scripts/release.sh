@@ -80,11 +80,16 @@ rm -f frontend/package.json.bak
 echo "  backend/pyproject.toml -> ${VERSION}"
 echo "  frontend/package.json  -> ${VERSION}"
 
+# Regenerate lockfiles so they stay in sync
+echo "Syncing lockfiles..."
+(cd backend && uv lock --quiet)
+(cd frontend && npm install --package-lock-only --silent)
+
 # ---------------------------------------------------------------------------
 # Commit, tag, push
 # ---------------------------------------------------------------------------
 
-git add backend/pyproject.toml frontend/package.json
+git add backend/pyproject.toml backend/uv.lock frontend/package.json frontend/package-lock.json
 git commit -m "Bump version to ${VERSION}"
 
 echo "Creating signed tag ${TAG}..."
