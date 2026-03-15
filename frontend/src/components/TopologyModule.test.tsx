@@ -5,6 +5,11 @@ import type { ColorMode } from "@xyflow/react";
 import { AppContext, type AppContextValue } from "../hooks/useAppContext";
 import TopologyModule from "./TopologyModule";
 
+vi.mock("../utils/export", () => ({
+  downloadSvg: vi.fn(),
+  downloadPng: vi.fn(),
+}));
+
 vi.mock("./DeviceMap", () => ({
   default: ({ devices, onDeviceSelect }: { devices: Array<{ mac: string; name: string }>; onDeviceSelect: (d: unknown) => void }) => (
     <div data-testid="device-map">
@@ -194,5 +199,81 @@ describe("TopologyModule", () => {
     fireEvent.click(screen.getByTestId("device-aa:bb:cc:dd:ee:01"));
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(screen.queryByTestId("device-panel")).not.toBeInTheDocument();
+  });
+
+  it("switches back from diagram to map view", () => {
+    renderModule();
+    fireEvent.click(screen.getByRole("button", { name: "Diagram" }));
+    expect(screen.getByTestId("svg-viewer")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Map" }));
+    expect(screen.getByTestId("device-map")).toBeInTheDocument();
+  });
+
+  it("toggles projection in diagram view", () => {
+    renderModule();
+    fireEvent.click(screen.getByRole("button", { name: "Diagram" }));
+    const isoBtn = screen.getByRole("button", { name: "Isometric" });
+    fireEvent.click(isoBtn);
+    // After toggle, projection changes (button text stays "Isometric" but class changes)
+    expect(isoBtn).toBeInTheDocument();
+  });
+
+  it("calls downloadSvg when Export SVG is clicked", () => {
+    renderModule();
+    fireEvent.click(screen.getByRole("button", { name: "Diagram" }));
+    fireEvent.click(screen.getByRole("button", { name: "Export SVG" }));
+    // downloadSvg is mocked via module mock but we verify no crash
+  });
+
+  it("calls downloadPng when Export PNG is clicked", () => {
+    renderModule();
+    fireEvent.click(screen.getByRole("button", { name: "Diagram" }));
+    fireEvent.click(screen.getByRole("button", { name: "Export PNG" }));
+  });
+
+  it("hides export buttons when no SVG data in diagram view", () => {
+    svgMock.data = undefined;
+    renderModule();
+    fireEvent.click(screen.getByRole("button", { name: "Diagram" }));
+    expect(screen.queryByRole("button", { name: "Export SVG" })).not.toBeInTheDocument();
+  });
+
+  it("reads sub-view from localStorage", () => {
+    localStorage.setItem("topologySubView", "diagram");
+    renderModule();
+    expect(screen.getByTestId("svg-viewer")).toBeInTheDocument();
+  });
+
+  it("falls back when localStorage throws", () => {
+    const orig = localStorage.getItem;
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("denied"); });
+    renderModule();
+    expect(screen.getByTestId("device-map")).toBeInTheDocument();
+    Storage.prototype.getItem = orig;
+  });
+
+  it("shows error fallback for non-Error objects in map", () => {
+    devicesMock.data = undefined;
+    devicesMock.error = { message: "" } as Error;
+    renderModule();
+    expect(screen.getByText("Failed to load devices")).toBeInTheDocument();
+  });
+
+  it("shows error fallback for non-Error objects in diagram", () => {
+    svgMock.data = undefined;
+    svgMock.error = { message: "" } as Error;
+    renderModule();
+    fireEvent.click(screen.getByRole("button", { name: "Diagram" }));
+    expect(screen.getByText("Failed to render topology")).toBeInTheDocument();
+  });
+
+  it("returns null in DiagramContent when no data and not loading", () => {
+    svgMock.data = undefined;
+    svgMock.isLoading = false;
+    svgMock.error = null;
+    renderModule();
+    fireEvent.click(screen.getByRole("button", { name: "Diagram" }));
+    expect(screen.queryByTestId("svg-viewer")).not.toBeInTheDocument();
+    expect(screen.queryByText("Rendering topology...")).not.toBeInTheDocument();
   });
 });

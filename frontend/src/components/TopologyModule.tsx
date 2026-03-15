@@ -36,7 +36,6 @@ function ErrorMessage({ error, fallback }: { error: Error | null; fallback: stri
   );
 }
 
-/* v8 ignore start -- branches tested via TopologyModule integration tests with mocked hooks */
 function MapContent({
   query,
   colorMode,
@@ -72,7 +71,6 @@ function DiagramContent({ query }: { query: UseQueryResult<TopologySvgResponse> 
   if (query.data) return <SvgViewer svgContent={query.data.svg} />;
   return null;
 }
-/* v8 ignore stop */
 
 const BTN = "rounded-lg border border-gray-300 dark:border-noc-border px-3 py-1.5 text-sm text-gray-600 dark:text-noc-text-secondary hover:bg-gray-100 dark:hover:bg-noc-raised hover:text-gray-900 dark:hover:text-noc-text hover:border-gray-400 dark:hover:border-noc-border-hover cursor-pointer transition-all";
 const BTN_ACTIVE = "rounded-lg border border-ub-blue px-3 py-1.5 text-sm text-ub-blue bg-blue-50 dark:bg-ub-blue-dim cursor-pointer transition-all";
