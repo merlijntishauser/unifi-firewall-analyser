@@ -42,7 +42,10 @@ STUB_NOTIFICATIONS = [
 
 @pytest.mark.anyio
 async def test_metrics_devices_returns_snapshots(client: AsyncClient) -> None:
-    with patch("app.routers.metrics.get_latest_snapshots", return_value=STUB_SNAPSHOTS):
+    with (
+        patch("app.routers.metrics._fetch_live_stats", return_value=[]),
+        patch("app.routers.metrics.get_latest_snapshots", return_value=STUB_SNAPSHOTS),
+    ):
         resp = await client.get("/api/metrics/devices")
     assert resp.status_code == 200
     data = resp.json()
@@ -53,7 +56,10 @@ async def test_metrics_devices_returns_snapshots(client: AsyncClient) -> None:
 
 @pytest.mark.anyio
 async def test_metrics_devices_empty(client: AsyncClient) -> None:
-    with patch("app.routers.metrics.get_latest_snapshots", return_value=[]):
+    with (
+        patch("app.routers.metrics._fetch_live_stats", return_value=[]),
+        patch("app.routers.metrics.get_latest_snapshots", return_value=[]),
+    ):
         resp = await client.get("/api/metrics/devices")
     assert resp.status_code == 200
     assert resp.json()["devices"] == []

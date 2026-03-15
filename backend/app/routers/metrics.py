@@ -3,6 +3,7 @@
 import structlog
 from fastapi import APIRouter
 
+from app.config import get_unifi_config, has_credentials
 from app.models import MetricsDevicesResponse, MetricsHistoryResponse, Notification
 from app.services.metrics import (
     dismiss_notification,
@@ -16,9 +17,26 @@ log = structlog.get_logger()
 router = APIRouter(tags=["metrics"])
 
 
+def _fetch_live_stats() -> list[object]:  # pragma: no cover -- integration with live controller
+    """Fetch current device stats for name/model enrichment."""
+    if not has_credentials():
+        return []
+    credentials = get_unifi_config()
+    if credentials is None:
+        return []
+    from unifi_topology import fetch_device_stats, normalize_device_stats
+
+    from app.services.firewall import to_topology_config
+
+    config = to_topology_config(credentials)
+    raw = fetch_device_stats(config, site=credentials.site)
+    return list(normalize_device_stats(raw))  # type: ignore[arg-type]
+
+
 @router.get("/devices")
 async def metrics_devices() -> MetricsDevicesResponse:
-    snapshots = get_latest_snapshots()
+    live = _fetch_live_stats()
+    snapshots = get_latest_snapshots(current_stats=live or None)  # type: ignore[arg-type]
     return MetricsDevicesResponse(devices=snapshots)
 
 
