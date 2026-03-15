@@ -66,7 +66,6 @@ export function useZoneFilter(enabled: boolean) {
   });
 }
 
-/* v8 ignore start -- mocked at hook level in component tests */
 export function useTopologySvg(colorMode: string, projection: string, enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.topologySvg(colorMode, projection),
@@ -114,7 +113,6 @@ export function useNotifications(enabled: boolean) {
     refetchInterval: 30_000,
   });
 }
-/* v8 ignore stop */
 
 export function useHealthSummary(enabled: boolean) {
   return useQuery({
